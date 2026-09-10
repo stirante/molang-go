@@ -1,0 +1,37 @@
+/bin/
+*.test
+*.prof
+
+# The golden corpus, and everything that reads it -- kept local, never published.
+#
+# testdata/molang_golden*.json is 3,120 Molang expressions taken verbatim from a
+# real, private add-on. The RESULT values in it were regenerated from this
+# package's own evaluator, but the expressions themselves are that project's
+# authoring vocabulary and worldgen logic in plain text, so the corpus cannot
+# ship. Worth knowing for whoever inherits this: grepping the corpus for a
+# namespace prefix finds almost nothing. What identifies the project is the
+# expressions themselves, not the identifiers in them, so the obvious check
+# would have passed it.
+#
+# The whole set moves together because it does not decompose: bench_test.go uses
+# the corpus loader too, which a search for the obvious symbol names missed --
+# it was caught by moving the files aside and building, which is the check worth
+# repeating if this list ever changes.
+#
+# A checkout without these builds, vets and passes every remaining test.
+# Everything here still runs locally, unchanged:  go test ./...
+/testdata/
+/golden_test.go
+/golden_scoped_test.go
+/goldencorpus.go
+/goldenscoped.go
+/goldenscopes.go
+/bench_test.go
+/cmd/gengolden/
+
+# Local working notes and the tooling that maintains them. Never tracked,
+# never published. Nothing in the build, the tests or CI reads anything here.
+#
+# Back it up outside the repo: git protects none of it, and `git clean -xdf`
+# would take the lot.
+/research/
