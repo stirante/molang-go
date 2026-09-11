@@ -13,7 +13,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"molang-go/eval"
+	"github.com/stirante/molang-go/eval"
 )
 
 // TestRoundingAfterFloat64IsExactlyFloat32Arithmetic answers "is this even the

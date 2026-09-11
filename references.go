@@ -4,8 +4,8 @@ import (
 	"sort"
 	"strings"
 
-	"molang-go/ast"
-	"molang-go/eval"
+	"github.com/stirante/molang-go/ast"
+	"github.com/stirante/molang-go/eval"
 )
 
 // Refs is everything a parsed program names.

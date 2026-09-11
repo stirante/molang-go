@@ -5,7 +5,7 @@ import (
 	"math"
 	"strings"
 
-	"molang-go/ast"
+	"github.com/stirante/molang-go/ast"
 )
 
 // Error is a compile-time error (unknown math function, wrong arity, bare

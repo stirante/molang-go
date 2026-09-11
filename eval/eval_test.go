@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"molang-go/eval"
-	"molang-go/parser"
+	"github.com/stirante/molang-go/eval"
+	"github.com/stirante/molang-go/parser"
 )
 
 func compile(t *testing.T, src string) (*eval.Program, error) {

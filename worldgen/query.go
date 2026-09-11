@@ -1,6 +1,6 @@
 package worldgen
 
-import "molang-go/eval"
+import "github.com/stirante/molang-go/eval"
 
 // HeightSource answers query.heightmap/query.above_top_solid. A real
 // worldgen tool would back this with actual column data; this package only

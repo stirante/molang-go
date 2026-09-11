@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"molang-go/eval"
-	"molang-go/parser"
-	"molang-go/printer"
+	"github.com/stirante/molang-go/eval"
+	"github.com/stirante/molang-go/parser"
+	"github.com/stirante/molang-go/printer"
 )
 
 type stubRNG struct{ n int }

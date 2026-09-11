@@ -15,7 +15,7 @@ package molang
 import (
 	"testing"
 
-	"molang-go/eval"
+	"github.com/stirante/molang-go/eval"
 )
 
 type stubRNG struct {

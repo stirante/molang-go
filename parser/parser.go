@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"molang-go/ast"
-	"molang-go/lexer"
-	"molang-go/token"
+	"github.com/stirante/molang-go/ast"
+	"github.com/stirante/molang-go/lexer"
+	"github.com/stirante/molang-go/token"
 )
 
 // Error is a parse error carrying the source string and the offset it

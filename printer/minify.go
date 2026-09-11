@@ -3,7 +3,7 @@ package printer
 import (
 	"strings"
 
-	"molang-go/ast"
+	"github.com/stirante/molang-go/ast"
 )
 
 // Minify renders prog as the shortest valid equivalent Molang source.

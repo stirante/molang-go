@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"molang-go/eval"
-	"molang-go/worldgen"
+	"github.com/stirante/molang-go/eval"
+	"github.com/stirante/molang-go/worldgen"
 )
 
 func TestNoiseIsDeterministic(t *testing.T) {

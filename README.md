@@ -6,7 +6,7 @@ implementation in Go: lexer, parser, AST, a closure-compiled evaluator, a
 expansion).
 
 It is deliberately not tied to any one consumer. The AST
-(`molang-go/ast`) is the shared currency — the evaluator, printer, and
+(`github.com/stirante/molang-go/ast`) is the shared currency — the evaluator, printer, and
 transforms all walk the same tree, so a single parse can be evaluated,
 reformatted, minified, or rewritten without re-parsing. It grew out of, and
 is validated against, a Minecraft Bedrock worldgen tool, but nothing in the
@@ -15,7 +15,7 @@ core packages knows that.
 ## Package layout
 
 ```
-molang-go/
+github.com/stirante/molang-go/
   token/      lexical token kinds
   lexer/      Molang source -> token stream
   ast/        the shared AST (Program, Stmt, Expr node types)
@@ -290,6 +290,8 @@ project's README.
 ## Usage
 
 ```go
+import molang "github.com/stirante/molang-go"
+
 prog, err := molang.Compile("temp.x = temp.x + 1; return temp.x;")
 if err != nil { ... }
 
@@ -313,8 +315,7 @@ folded := transform.FoldConstants(expanded)
 The binary is named for its directory, so it is `molang`, not `molang-go`:
 
 ```
-go build   ./cmd/molang      # ./molang here
-go install ./cmd/molang      # onto $GOBIN
+go install github.com/stirante/molang-go/cmd/molang@latest
 ```
 
 ```

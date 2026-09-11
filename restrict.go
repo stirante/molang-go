@@ -3,7 +3,7 @@ package molang
 import (
 	"fmt"
 
-	"molang-go/ast"
+	"github.com/stirante/molang-go/ast"
 )
 
 // Where an expression is written decides what it may contain.

@@ -25,7 +25,7 @@ import (
 	"strconv"
 	"strings"
 
-	"molang-go/ast"
+	"github.com/stirante/molang-go/ast"
 )
 
 // precedence levels, low to high. Matches the parser's grammar comment.

@@ -22,7 +22,7 @@ import (
 	"math"
 	"testing"
 
-	"molang-go/eval"
+	"github.com/stirante/molang-go/eval"
 )
 
 func TestBasicArithmetic(t *testing.T) {

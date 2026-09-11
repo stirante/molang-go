@@ -5,11 +5,11 @@ import (
 	"strconv"
 	"testing"
 
-	"molang-go/ast"
-	"molang-go/eval"
-	"molang-go/parser"
-	"molang-go/printer"
-	"molang-go/transform"
+	"github.com/stirante/molang-go/ast"
+	"github.com/stirante/molang-go/eval"
+	"github.com/stirante/molang-go/parser"
+	"github.com/stirante/molang-go/printer"
+	"github.com/stirante/molang-go/transform"
 )
 
 type zeroRNG struct{}

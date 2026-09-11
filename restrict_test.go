@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"molang-go/ast"
-	"molang-go/eval"
+	"github.com/stirante/molang-go/ast"
+	"github.com/stirante/molang-go/eval"
 )
 
 func parseOK(t *testing.T, src string) *ast.Program {

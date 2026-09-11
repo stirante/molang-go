@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"molang-go/ast"
-	"molang-go/parser"
+	"github.com/stirante/molang-go/ast"
+	"github.com/stirante/molang-go/parser"
 )
 
 // This is an EXTERNAL test package (ast_test), so it may import the parser

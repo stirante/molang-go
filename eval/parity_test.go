@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"testing"
 
-	"molang-go/eval"
+	"github.com/stirante/molang-go/eval"
 )
 
 // This file pins the behaviours settled against Bedrock 1.26.50.24. Each

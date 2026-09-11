@@ -4,7 +4,7 @@ import (
 	"math"
 	"sync"
 
-	"molang-go/mtrand"
+	"github.com/stirante/molang-go/mtrand"
 )
 
 // query.noise — Bedrock's 2D value-noise Molang query.

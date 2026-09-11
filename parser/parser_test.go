@@ -3,7 +3,7 @@ package parser_test
 import (
 	"testing"
 
-	"molang-go/parser"
+	"github.com/stirante/molang-go/parser"
 )
 
 // Note: math arity/unknown-function/bare-without-call checks are performed

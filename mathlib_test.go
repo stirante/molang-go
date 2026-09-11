@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"molang-go/eval"
+	"github.com/stirante/molang-go/eval"
 )
 
 // mathlib_test.go is the math library. See language_test.go's header for how

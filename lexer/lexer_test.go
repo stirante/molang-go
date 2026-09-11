@@ -3,8 +3,8 @@ package lexer_test
 import (
 	"testing"
 
-	"molang-go/lexer"
-	"molang-go/token"
+	"github.com/stirante/molang-go/lexer"
+	"github.com/stirante/molang-go/token"
 )
 
 func TestTokenizeBasic(t *testing.T) {

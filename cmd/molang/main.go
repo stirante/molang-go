@@ -25,9 +25,9 @@ import (
 	"strconv"
 	"strings"
 
-	"molang-go/eval"
-	"molang-go/mtrand"
-	"molang-go/parser"
+	"github.com/stirante/molang-go/eval"
+	"github.com/stirante/molang-go/mtrand"
+	"github.com/stirante/molang-go/parser"
 )
 
 const usage = `molang -- a command-line front end for Molang

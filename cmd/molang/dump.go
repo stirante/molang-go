@@ -6,7 +6,7 @@ import (
 	"io"
 	"strconv"
 
-	"molang-go/ast"
+	"github.com/stirante/molang-go/ast"
 )
 
 // node is a printable description of one AST node. Both the indented outline

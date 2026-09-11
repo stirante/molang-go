@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"molang-go/token"
+	"github.com/stirante/molang-go/token"
 )
 
 // Error is a lexical error with a source position.

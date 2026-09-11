@@ -11,8 +11,8 @@ import (
 	"math"
 	"strings"
 
-	"molang-go/ast"
-	"molang-go/eval"
+	"github.com/stirante/molang-go/ast"
+	"github.com/stirante/molang-go/eval"
 )
 
 // FoldConstants replaces every subexpression that has no dependency on

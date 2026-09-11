@@ -13,9 +13,9 @@
 package molang
 
 import (
-	"molang-go/ast"
-	"molang-go/eval"
-	"molang-go/parser"
+	"github.com/stirante/molang-go/ast"
+	"github.com/stirante/molang-go/eval"
+	"github.com/stirante/molang-go/parser"
 )
 
 // RNG is re-exported from eval for convenience; see eval.RNG's doc comment

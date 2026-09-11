@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"molang-go/ast"
+	"github.com/stirante/molang-go/ast"
 )
 
 // Macro is a user-function that expands to core Molang at transform time,
