@@ -22,8 +22,9 @@ func TestAssignmentCopiesDottedMembers(t *testing.T) {
 		"v.a.b.c = 5; v.z = v.a; return v.z.b.c;": 5,
 		// A name with BOTH a value and members carries both.
 		"v.x = 7; v.x.m = 8; v.y = v.x; return v.y + v.y.m;": 15,
-		// Copying to and from temp. works the same way, in either direction.
-		"t.s.a = 4; v.d = t.s; return v.d.a;": 4,
+		// Copying into a temp. works the same way. (Out of one too, but a
+		// temp with members cannot be written -- `t.s.a = 4` is refused,
+		// see the parser -- so there is no way to build one to copy.)
 		"v.s.a = 6; t.d = v.s; return t.d.a;": 6,
 	}
 	for src, want := range cases {

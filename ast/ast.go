@@ -6,6 +6,8 @@
 // packages eval/printer/transform each walk the tree for their own purpose.
 package ast
 
+import "strings"
+
 // Namespace identifies which of Molang's four dotted namespaces an
 // Identifier belongs to.
 type Namespace uint8
@@ -17,7 +19,8 @@ const (
 	Temp
 	// Array is the namespace of host-supplied arrays. Unlike every other
 	// namespace it is never read bare: `array.foo` alone is not an
-	// expression, only `array.foo[index]` is.
+	// expression, only `array.foo[index]` is. The one exception is the
+	// source of a for_each, which names the array itself.
 	Array
 	// Geometry, Material and Texture name RESOURCES rather than values. A
 	// resource is a name: two can be compared and a ternary can select
@@ -177,18 +180,47 @@ type ThisExpr struct{}
 func (*ThisExpr) node()     {}
 func (*ThisExpr) exprNode() {}
 
-// ArrowExpr is `context.<entity>-><read>` -- a variable or query read
-// evaluated against another entity rather than the current one.
+// ArrowExpr is `<entity>-><read>` -- a variable or query read evaluated
+// against another entity rather than the current one.
 //
-// Entity is always a context. name. Read is a variable. read or a query.
-// read or call. Neither a chain (`a->b->c`) nor a non-context left side is
-// legal, and both are refused at parse time.
+// Entity is ANY primary expression: what the game checks when an expression
+// loads is only that it is not itself an arrow. In practice it is a
+// `context.` name the host has bound to an entity (`c.other`), a variable
+// or temp holding an entity reference (`v.target`, or `t.e` inside a
+// for_each over an entity array), or a parenthesised expression yielding
+// one. A number, a string, `this`, an array element or a query result are
+// all accepted here and simply fail to be an entity at run time.
 //
-// A missing entity reads 0. That is NOT an unresolved read: it does not end
-// the expression, which is what lets `v.x = c.nobody->v.y;` still assign.
+// Read is a `variable.<name>` read, or a `query.<name>` read or call. Anything
+// else on the right -- `temp.`, `context.`, `math.`, a dotted member path, a
+// block -- is refused at parse time with the game's own wording, and so is
+// a chain (`a->b->c`), an assignment through the arrow (`a->v.x = 1`), and an
+// arrow on the left of `??`.
+//
+// The arrow binds tighter than every operator: `-a->v.x` is `-(a->v.x)`,
+// `a->v.x + 1` is `(a->v.x) + 1`, and `a->q.f(1) * 2` is `(a->q.f(1)) * 2`.
+// It applies after grouping, calls and array indexing, so `q.f(1)->v.x` reads
+// through the query's result and `array.a[0]->v.x` through the element.
+//
+// When Entity is not an entity -- a plain number, a name bound to nothing, an
+// entity that has since been removed -- the whole arrow reads 0 and the right
+// side is NOT evaluated, so the arguments of a query call through it are
+// skipped. That is NOT an unresolved read: it does not end the expression,
+// which is what lets `v.x = c.nobody->v.y;` still assign. See eval for what
+// the right side sees when there IS an entity.
 type ArrowExpr struct {
-	Entity *Ident
+	Entity Expr
 	Read   Expr
+}
+
+// EntityContextName reports the context. member when Entity is a bare
+// `context.<name>`, the shape a host binds an entity to by name.
+func (a *ArrowExpr) EntityContextName() (string, bool) {
+	id, ok := a.Entity.(*Ident)
+	if !ok || id.Namespace != Context {
+		return "", false
+	}
+	return id.Member, true
 }
 
 func (*ArrowExpr) node()     {}
@@ -291,12 +323,41 @@ const (
 	CmpNe
 	LAnd
 	LOr
+	// NullCoalesce is `??`: a catch around an unresolved read of its left
+	// operand, which must be a direct variable reference (see
+	// IsDirectVariableRef). It binds looser than the conditional and
+	// tighter than assignment, and a chain groups to the left -- so
+	// `v.a ?? v.b ?? 1` puts a `??` on the left of a `??` and is refused;
+	// it has to be written `v.a ?? (v.b ?? 1)`.
 	NullCoalesce
 )
 
 type BinaryExpr struct {
 	Op   BinaryOp
 	X, Y Expr
+}
+
+// IsDirectVariableRef reports whether e is what the game lets stand on the
+// left of `??`: a bare `context.`, `variable.` or `temp.` read (long or short
+// spelling), naming a single-part member. Nothing else qualifies -- not a
+// query, a number, a string, `true`/`false`, a math call, an array element,
+// `this`, a resource, a negation, an arrow, an assignment, a conditional,
+// another `??`, nor a dotted member path such as `v.a.b`, which the game
+// reads as a member access on `v.a` rather than as a variable.
+//
+// The game applies this rule to the tree it has built, after grouping, so
+// parentheses around the read change nothing: `(v.x) ?? 1` is accepted and
+// `(v.x + 0) ?? 1` is not.
+func IsDirectVariableRef(e Expr) bool {
+	id, ok := e.(*Ident)
+	if !ok {
+		return false
+	}
+	switch id.Namespace {
+	case Context, Variable, Temp:
+		return !strings.Contains(id.Member, ".")
+	}
+	return false
 }
 
 // AssignExpr assigns Value to Target (temp.* or variable.* only) and
@@ -314,6 +375,11 @@ type CallExpr struct {
 
 // TernaryExpr is `cond ? then : else` or the binary-conditional shorthand
 // `cond ? then` (Else == nil), which yields 0 when Cond is falsy.
+//
+// Either arm may be a block: `cond ? { ... } : value` has a Then that is an
+// always-true CondBlockStmt, and `cond ? value : { ... }` an Else of the same
+// shape. (A block on both sides, or on the only side, is a CondBlockStmt
+// rather than a TernaryExpr.)
 type TernaryExpr struct {
 	Cond, Then, Else Expr
 }
@@ -349,9 +415,15 @@ type Block struct {
 // heavily: `cond ? { ...statements };`. If Cond is falsy, Body does not run
 // (and, absent an Else, the statement contributes 0).
 //
+// A CondBlockStmt whose Cond is BoolLit(true) is how an unconditional
+// `{ ... }` is represented wherever one can stand: a bare grouping block, a
+// plain else-clause, and a block arm of a TernaryExpr (`c ? { ... } : 1`,
+// `c ? 1 : { ... }`). A block arm runs its statements and yields 0 unless a
+// `return` inside it fires.
+//
 // Else, if present, is always another CondBlockStmt: a plain `: { ... }`
 // else-clause is represented as an Else with Cond set to a BoolLit(true), so
-// `cond ? {a} : {b};` and `cond1 ? {a} : cond2 ? {b} : {c};` (else-if
+// `cond ? {a;} : {b;};` and `cond1 ? {a;} : cond2 ? {b;} : {c;};` (else-if
 // chains) share one representation.
 //
 // CondBlockStmt implements Expr as well as Stmt purely so the parser can
@@ -371,21 +443,39 @@ type LoopStmt struct {
 	Body  *Block
 }
 
-// ForEachStmt is `for_each(<variable>, <array>, { body })`.
+// ForEachStmt is `for_each(<variable>, <source>, { body })`.
 //
 // Var is the name the current element is written to on each pass -- a
 // variable. or temp. name, assigned before the body runs and left holding the
 // last element afterwards.
 //
-// Array names the host array to walk. Molang also allows a variable holding
-// an entity array here; this package has no entities and no array-valued
-// variables, so `array.<name>` is the only source it accepts. That is a
-// SUBSET, not a difference in behaviour: what it does iterate, it iterates
-// the same way.
+// Source is what to walk, and any expression parses there: the game checks
+// only the argument count and the loop variable when it loads an expression.
+// In the game the source is an entity array, typically a query such as
+// `q.get_nearby_entities(4, 'player')`, and the loop variable becomes an
+// entity reference usable with `->`. That is what eval walks too, when the
+// source evaluates to an entity array a host query returned; anything else
+// is walked zero times. See eval's compileForEach.
+//
+// A bare `array.<name>` is the one shape that is not an ordinary expression:
+// it is an *Ident in the Array namespace, naming the host array itself rather
+// than an element of it. Walking a host array numerically is THIS PACKAGE'S
+// EXTENSION, not something the game does -- the game iterates entity arrays
+// only.
 type ForEachStmt struct {
-	Var   *Ident
-	Array string
-	Body  *Block
+	Var    *Ident
+	Source Expr
+	Body   *Block
+}
+
+// ArrayName reports the host array name when Source is a bare
+// `array.<name>`, the source this package's extension iterates numerically.
+func (f *ForEachStmt) ArrayName() (string, bool) {
+	id, ok := f.Source.(*Ident)
+	if !ok || id.Namespace != Array {
+		return "", false
+	}
+	return id.Member, true
 }
 
 // Program is the parsed result of a whole Molang source string.
@@ -478,6 +568,11 @@ func Walk(n Node, visit func(Node) bool) {
 		for _, a := range v.Args {
 			Walk(a, visit)
 		}
+	case *ArrowExpr:
+		Walk(v.Entity, visit)
+		Walk(v.Read, visit)
+	case *ArrayAccess:
+		Walk(v.Index, visit)
 	case *TernaryExpr:
 		Walk(v.Cond, visit)
 		Walk(v.Then, visit)
@@ -502,6 +597,10 @@ func Walk(n Node, visit func(Node) bool) {
 		}
 	case *LoopStmt:
 		Walk(v.Count, visit)
+		Walk(v.Body, visit)
+	case *ForEachStmt:
+		Walk(v.Var, visit)
+		Walk(v.Source, visit)
 		Walk(v.Body, visit)
 	case *Program:
 		for _, s := range v.Stmts {

@@ -11,7 +11,10 @@
 // neighbouring element in silence and the author never finds out.
 package molang
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func arrayCtx(arrays map[string][]float64) *Context {
 	ctx := newCtx()
@@ -130,24 +133,39 @@ func TestArrayValuesAreRoundedToFloat32(t *testing.T) {
 	}
 }
 
-// An array element cannot be an operand of a binary operator. Arithmetic
-// inside the index is fine; arithmetic on what comes out is refused, the same
-// way the game refuses it.
-func TestArrayElementIsNotABinaryOperand(t *testing.T) {
+// An array element refuses a constant folded onto it, and only that. The
+// game's optimizer folds a constant added to or multiplied into an operand
+// onto that operand, and a negation likewise, and then refuses an array
+// element carrying such a fold; an element combined with anything that is
+// not a constant carries nothing and loads. Arithmetic inside the index is
+// always fine. See ast.FoldsIntoArrayElement.
+func TestArrayElementRefusesAFoldedConstant(t *testing.T) {
+	const want = "can't currently do math operations on resource array results"
 	refused := []string{
 		"array.test[1 + 1] + 1",
 		"1 + array.test[0]",
 		"array.test[0] - 1",
 		"array.test[0] * 2",
-		"array.test[0] / 2",
-		"array.test[0] == 1",
-		"array.test[0] < 1",
-		"array.test[0] && 1",
-		"array.test[0] || 1",
+		"2 * array.test[0]",
+		"array.test[0] + math.pi",
+		"array.test[0] + (1 + 2)",
+		"array.test[0] * math.abs(-2)",
+		"-array.test[0]",
+		"1 - array.test[0]",
+		"v.y - array.test[0]",
+		"v.x = array.test[0] + 1;",
+		"math.abs(array.test[0] * 2)",
+		"array.test[0] + 1 + v.y",
+		"2 * array.test[0] * v.y",
 	}
 	for _, src := range refused {
-		if _, err := Compile(src); err == nil {
-			t.Errorf("%q compiled, but an array element cannot be an operand", src)
+		_, err := Compile(src)
+		if err == nil {
+			t.Errorf("%q compiled, but the constant folds onto the array element", src)
+			continue
+		}
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: error %q does not carry the game's wording", src, err)
 		}
 	}
 
@@ -159,6 +177,22 @@ func TestArrayElementIsNotABinaryOperand(t *testing.T) {
 		"array.test[0] ? 1 : 2",
 		"v.x = array.test[0];",
 		"return array.test[0];",
+		"array.test[0] + v.y",
+		"v.y + array.test[0]",
+		"array.test[0] - v.y",
+		"array.test[0] * v.y",
+		"array.test[0] / 2",
+		"2 / array.test[0]",
+		"array.test[0] == 1",
+		"array.test[0] != 1",
+		"array.test[0] < 1",
+		"array.test[0] && 1",
+		"array.test[0] || 1",
+		"!array.test[0]",
+		"v.y + array.test[0] + 1",
+		"(array.test[0] + v.y) * 2",
+		"-(array.test[0] + v.y)",
+		"array.test[0] * v.y * 2",
 	}
 	for _, src := range accepted {
 		if _, err := Compile(src); err != nil {

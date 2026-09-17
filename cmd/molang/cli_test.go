@@ -32,7 +32,7 @@ func TestTransformOnlyChainPrintsSource(t *testing.T) {
 	for _, c := range []struct{ stages, src, want string }{
 		{"fold", "1 + 2 * 3", "7"},
 		{"fmt", "temp.a=1;return temp.a;", "temp.a = 1; return temp.a;"},
-		{"minify", "temp.a = 1; return temp.a;", "t.a=1;return t.a"},
+		{"minify", "temp.a = 1; return temp.a;", "t.a=1;return t.a;"},
 		{"expand", "math.bitshift(v.x, 3)", "math.floor(variable.x / math.pow(2, 3))"},
 		{"expand,fold", "math.bitshift(64, 3)", "8"},
 		{"fold,minify", "1 + 2 * 3 + variable.x", "7+v.x"},
@@ -88,6 +88,17 @@ func TestParseErrorsReachTheCaller(t *testing.T) {
 	if _, err := run(t, []string{"fmt"}, "1 # c\n+ 2", &options{comments: true}); err != nil {
 		t.Errorf("-comments did not enable the extension: %v", err)
 	}
+
+	// So is leaving out the ';' the game requires.
+	if _, err := run(t, []string{"eval"}, "v.a = 5", nil); err == nil {
+		t.Error("`v.a = 5` parsed without -optional-semicolons")
+	}
+	got, err := run(t, []string{"eval"}, "v.a = 5", &options{optionalSemicolons: true})
+	if err != nil {
+		t.Errorf("-optional-semicolons did not enable the extension: %v", err)
+	} else if strings.TrimSpace(got) != "5" {
+		t.Errorf("-optional-semicolons: eval = %q, want 5", got)
+	}
 }
 
 func TestEvalUsesTheSuppliedScope(t *testing.T) {
@@ -130,11 +141,11 @@ func TestEvalUnresolvedReadStopsUnlessToldOtherwise(t *testing.T) {
 }
 
 func TestValidateAppliesRestrictions(t *testing.T) {
-	if got := mustRun(t, []string{"validate"}, "math.max(v.a = 5, 3)", nil); got != "ok" {
+	if got := mustRun(t, []string{"validate"}, "q.foo(v.a = 5, 3);", nil); got != "ok" {
 		t.Errorf("unrestricted validate said %q", got)
 	}
 
-	_, err := run(t, []string{"validate"}, "math.max(v.a = 5, 3)", &options{noSideEffects: true})
+	_, err := run(t, []string{"validate"}, "q.foo(v.a = 5, 3);", &options{noSideEffects: true})
 	if err == nil {
 		t.Fatal("-no-side-effects accepted an assignment")
 	}
@@ -176,7 +187,7 @@ func TestForbidMatchesOperationsByName(t *testing.T) {
 }
 
 func TestOpsAndRefsDescribeTheProgram(t *testing.T) {
-	ops := mustRun(t, []string{"ops"}, "v.a = math.random(0, 1)", nil)
+	ops := mustRun(t, []string{"ops"}, "v.a = math.random(0, 1);", nil)
 	for _, want := range []string{"Random 'math.random'", "Assignment '='", "Entity Variable"} {
 		if !strings.Contains(ops, want) {
 			t.Errorf("ops output missing %q:\n%s", want, ops)
@@ -284,6 +295,7 @@ func TestFlagsFollowTheStagesNamed(t *testing.T) {
 		{[]string{"ast"}, "json", true},
 		{[]string{"minify"}, "json", false},
 		{[]string{"fmt"}, "comments", true},
+		{[]string{"repl"}, "optional-semicolons", true},
 	}
 	for _, c := range cases {
 		if got := hasFlag(c.names, c.flag); got != c.want {

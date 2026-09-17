@@ -48,8 +48,11 @@ func foldStmt(s ast.Stmt) ast.Stmt {
 		foldBlock(s.Body)
 		return s
 	case *ast.ForEachStmt:
-		// Nothing to fold in the header: the array is a name rather than an
-		// expression, and the loop variable is a write target.
+		// The loop variable is a write target and a bare array source is a
+		// name; any other source is an expression and folds like one.
+		if _, isArray := s.ArrayName(); !isArray {
+			s.Source = foldExpr(s.Source)
+		}
 		foldBlock(s.Body)
 		return s
 	case *ast.CondBlockStmt:
@@ -152,8 +155,11 @@ func foldExpr(e ast.Expr) ast.Expr {
 		return e
 
 	case *ast.ArrowExpr:
-		// Nothing folds: the value depends on an entity not known until
-		// evaluation. The arguments of a query call through it still do.
+		// The arrow itself never folds: its value depends on an entity not
+		// known until evaluation. Either side may still contain arithmetic
+		// -- a computed left side, the arguments of a query call on the
+		// right -- and that folds as usual.
+		e.Entity = foldExpr(e.Entity)
 		e.Read = foldExpr(e.Read)
 		return e
 
@@ -213,13 +219,24 @@ func foldExpr(e ast.Expr) ast.Expr {
 			e.Else = foldExpr(e.Else)
 		}
 		if c, ok := asNumber(e.Cond); ok {
+			chosen := e.Else
 			if isTruthy(c) {
-				return e.Then
+				chosen = e.Then
 			}
-			if e.Else != nil {
-				return e.Else
+			if chosen == nil {
+				return &ast.NumberLit{Value: 0}
 			}
-			return &ast.NumberLit{Value: 0}
+			// A conditional may hold an operand its surroundings would
+			// refuse: `math.abs(1 ? 'a' : 2)` and `(1 ? array.a[0] : 0) + 1`
+			// load, because the operand is the conditional and not what is
+			// inside it. The game's own folder only collapses a conditional
+			// whose arms are numbers, so it never exposes such an operand;
+			// this folder goes further and must stop short of doing so, or
+			// it would print source the game refuses.
+			if exposesRefusedOperand(chosen) {
+				return e
+			}
+			return chosen
 		}
 		return e
 
@@ -229,10 +246,21 @@ func foldExpr(e ast.Expr) ast.Expr {
 	return e
 }
 
+// exposesRefusedOperand reports whether putting e where a conditional stood
+// could produce a shape the game refuses: a non-numeric operand, or an array
+// element about to have a constant folded onto it.
+func exposesRefusedOperand(e ast.Expr) bool {
+	if ast.IsNonNumericOperand(e) {
+		return true
+	}
+	_, isArray := e.(*ast.ArrayAccess)
+	return isArray
+}
+
 // foldBinary reproduces eval.compileBinary's constant-operand semantics
 // (float32 rounding on every arithmetic op, the Divide near-zero guard,
-// boolean-normalizing &&/||, NaN-coalescing ??) so folding never changes a
-// program's result.
+// boolean-normalizing &&/||) so folding never changes a program's result.
+// `??` is the one binary operator it declines: see its case below.
 //
 // "Reproduces", not "shares": compileBinary builds lazy closures shaped
 // around evaluation order (Divide evaluates its denominator first and
@@ -303,14 +331,15 @@ func foldBinary(op ast.BinaryOp, x, y float64) (float64, bool) {
 		}
 		return b2f(y != 0), true
 	case ast.NullCoalesce:
-		// `??` catches an UNRESOLVED VARIABLE READ in its left operand
-		// (see eval/unresolved.go). A constant is never unresolved, and
-		// this function is only ever reached with two already-constant
-		// operands, so a foldable `??` always yields its left side. The
-		// NaN test that used to be here came from the old NaN-coalescing
-		// reading and would now silently rewrite `math.sqrt(-1) ?? 5`
-		// (NaN in the evaluator) into `5`.
-		return x, true
+		// Never folded. The left side of `??` is a variable read -- the
+		// only shape the game accepts there, and the parser refuses the
+		// rest -- so it is never a constant and this case is unreachable
+		// from a parsed tree. It is spelled out rather than left to the
+		// default because folding a `??` to its left operand is exactly
+		// the wrong thing for a tree built by hand: it would turn a
+		// program the game refuses to load into one that runs. The right
+		// side still folds on its own through foldExpr.
+		return 0, false
 	}
 	return 0, false
 }

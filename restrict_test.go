@@ -32,8 +32,8 @@ func TestOpsUsedNamesWhatAnExpressionContains(t *testing.T) {
 	}{
 		{"1 + 2", []ast.Op{ast.OpFloat, ast.OpAdd}},
 		{"1 - 2", []ast.Op{ast.OpFloat, ast.OpAdd, ast.OpNegate}},
-		{"v.a = 5", []ast.Op{ast.OpAssignment, ast.OpEntityVariable, ast.OpFloat}},
-		{"t.a = 5", []ast.Op{ast.OpAssignment, ast.OpTempVariable}},
+		{"v.a = 5;", []ast.Op{ast.OpAssignment, ast.OpEntityVariable, ast.OpFloat}},
+		{"t.a = 5;", []ast.Op{ast.OpAssignment, ast.OpTempVariable}},
 		{"math.random(0, 1)", []ast.Op{ast.OpRandom}},
 		{"math.die_roll(1, 2, 3)", []ast.Op{ast.OpDieRoll}},
 		{"math.ease_in_out_elastic(0, 1, 0.5)", []ast.Op{ast.OpEaseInOutElastic}},
@@ -42,12 +42,17 @@ func TestOpsUsedNamesWhatAnExpressionContains(t *testing.T) {
 		{"q.foo", []ast.Op{ast.OpQueryFunction}},
 		{"array.a[1]", []ast.Op{ast.OpArrayVariable, ast.OpArray}},
 		{"c.other->q.test", []ast.Op{ast.OpPointer, ast.OpContextVariable, ast.OpQueryFunction}},
+		{"v.e->v.hp", []ast.Op{ast.OpPointer, ast.OpEntityVariable}},
+		{"t.e->q.test(1)", []ast.Op{ast.OpPointer, ast.OpTempVariable, ast.OpQueryFunction, ast.OpFloat}},
 		{"this", []ast.Op{ast.OpThis}},
 		{"1 ? 2 : 3", []ast.Op{ast.OpConditional, ast.OpConditionalElse}},
 		{"1 ? 2", []ast.Op{ast.OpConditional}},
 		{"v.x ?? 5", []ast.Op{ast.OpNullCoalescing}},
 		{"loop(3, { t.i = t.i + 1; });", []ast.Op{ast.OpLoop, ast.OpAssignment, ast.OpSemicolon}},
 		{"for_each(t.x, array.a, { t.s = t.s + t.x; });", []ast.Op{ast.OpForEach, ast.OpArrayVariable}},
+		{"for_each(t.x, q.get_nearby_entities(4, 'player'), { t.n = 1; });", []ast.Op{ast.OpForEach, ast.OpQueryFunction, ast.OpString}},
+		{"q.x ? { v.a = 1; } : 0;", []ast.Op{ast.OpConditional, ast.OpConditionalElse, ast.OpAssignment}},
+		{"q.x ? 0 : { v.a = 1; };", []ast.Op{ast.OpConditional, ast.OpConditionalElse, ast.OpAssignment}},
 		{"return 1;", []ast.Op{ast.OpReturn, ast.OpSemicolon}},
 		{"1 + 1", []ast.Op{ast.OpAdd}},
 		{"geometry.default == geometry.other", []ast.Op{ast.OpGeometryVariable}},
@@ -83,14 +88,15 @@ func TestSubtractIsNegatePlusAdd(t *testing.T) {
 
 // An assignment hiding in an argument is the case that makes an
 // operation-set check necessary rather than decorative: the expression is
-// syntactically ordinary and still carries a side effect.
+// syntactically ordinary and still carries a side effect. (A math function
+// or an arithmetic operator refuses an assignment as an operand outright; a
+// query, a conditional and another assignment do not.)
 func TestAssignmentIsFoundInsideAnArgument(t *testing.T) {
 	for _, src := range []string{
-		"math.max(v.a = 5, 3)",
-		"(v.a = 5) + 1",
-		"q.foo(v.a = 5)",
-		"1 ? (v.a = 5) : 0",
-		"math.max(1, math.min(2, v.a = 5))",
+		"q.foo(v.a = 5);",
+		"q.foo(1, q.bar(2, v.a = 5));",
+		"1 ? (v.a = 5) : 0;",
+		"v.b = (v.a = 5);",
 	} {
 		if !opsOf(t, src).Has(ast.OpAssignment) {
 			t.Errorf("%q: assignment not reported", src)
@@ -104,7 +110,7 @@ func TestAssignmentIsFoundInsideAnArgument(t *testing.T) {
 // Assignment is refused whatever alsoRandom says -- turning the switch on at
 // all is what forbids it.
 func TestAssignmentIsRefusedUnderBothSettings(t *testing.T) {
-	prog := parseOK(t, "v.a = 5")
+	prog := parseOK(t, "v.a = 5;")
 	for _, alsoRandom := range []bool{false, true} {
 		if err := DisallowSideEffects(prog, alsoRandom); err == nil {
 			t.Errorf("alsoRandom=%v: assignment accepted", alsoRandom)
@@ -168,7 +174,7 @@ func keys(m map[string]bool) []string {
 // an author matching a message from the game against one from a tool has to
 // translate between two vocabularies.
 func TestErrorNamesTheOperationTheWayTheEngineDoes(t *testing.T) {
-	err := DisallowSideEffects(parseOK(t, "v.a = 5"), false)
+	err := DisallowSideEffects(parseOK(t, "v.a = 5;"), false)
 	if err == nil {
 		t.Fatal("expected an error")
 	}
@@ -189,7 +195,7 @@ func TestErrorNamesTheOperationTheWayTheEngineDoes(t *testing.T) {
 // A program breaking several rules should report them all, so an author
 // fixes the expression once rather than once per attempt.
 func TestErrorCarriesEveryForbiddenOperation(t *testing.T) {
-	err := DisallowSideEffects(parseOK(t, "v.a = math.random(0, 1)"), true)
+	err := DisallowSideEffects(parseOK(t, "v.a = math.random(0, 1);"), true)
 	if err == nil {
 		t.Fatal("expected an error")
 	}
@@ -225,7 +231,7 @@ func TestPureExpressionsPass(t *testing.T) {
 }
 
 func TestEmptyDisallowedSetAlwaysPasses(t *testing.T) {
-	for _, src := range []string{"v.a = 5", "math.random(0, 1)", "loop(3, { t.i = 1; });"} {
+	for _, src := range []string{"v.a = 5;", "math.random(0, 1)", "loop(3, { t.i = 1; });"} {
 		if err := CheckOps(parseOK(t, src), ast.OpSet{}); err != nil {
 			t.Errorf("%q: %v", src, err)
 		}

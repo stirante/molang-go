@@ -1,5 +1,7 @@
 package eval
 
+import "math"
+
 // Scope holds the temp./variable./query. numeric bags a Program reads and
 // writes. It is always caller-owned: never global, and expected to outlive
 // a single Run() call so callers can thread it through a chain of nested
@@ -49,15 +51,35 @@ type QueryFunc func(args []float64, ctx *Context) float64
 // queries that answer about it. A host that has richer objects hands over a
 // view of them rather than the objects themselves, which keeps this package
 // free of any notion of what an entity is.
+//
+// An expression gets hold of one as a VALUE -- an entity reference -- in one
+// of three ways, and can then read through it with `->`, store it in a
+// variable or temp, pass it around, and compare it with `==`:
+//
+//   - a `context.<name>` read where Context.Entities has that name;
+//   - the loop variable of a for_each over an entity array, which a host
+//     query returns with Context.EntityArrayRef;
+//   - a host QueryFunc returning Context.EntityRef(e) directly.
+//
+// The reference is an ordinary float64 as far as the language is concerned,
+// which is how the game treats it too: a variable holds whatever it was
+// last assigned, a number or an entity, and an arrow whose left side turns
+// out not to be an entity reads 0. Doing arithmetic on one is meaningless
+// and gives a meaningless number; the game's answer to that is not modelled.
 type Entity struct {
-	// Variable holds what the entity has published. In game an entity's
-	// variables are not visible to others until it publishes them, so a
-	// host that models that should put the published snapshot here rather
-	// than the live map.
+	// Variable holds what the entity has PUBLISHED. In game only a variable
+	// the entity marked public can be read by others: a private one, and a
+	// name it never set, both read 0 through `->` without ending the
+	// expression -- the missing-variable abort applies to an entity's own
+	// reads, not to reads through an arrow. So a host that models
+	// visibility should put the published snapshot here rather than the
+	// live map, and leave out what is private.
 	Variable map[string]float64
 
-	// QueryFuncs answers query. reads made through the arrow. A name with
-	// no function here reads 0.
+	// QueryFuncs answers query. reads and calls made through the arrow. A
+	// name with no function here falls back to Context.QueryFuncs, which
+	// can tell who is being asked from Context.CurrentEntity, and a name
+	// with neither reads 0.
 	QueryFuncs map[string]QueryFunc
 }
 
@@ -71,9 +93,11 @@ type Context struct {
 	// as every other absent host input here.
 	This float64
 
-	// Entities holds the other entities an expression can reach with `->`.
-	// The key is the context. member naming one; a name with no entity, and
-	// an entity the host supplies as nil, both read 0.
+	// Entities binds context. names to entities: a read of `context.<key>`
+	// yields a reference to the entity, which is what `c.other->v.x` and
+	// `v.e = c.other;` need. A name with no entry here reads through the
+	// query bag as any other context. name does, and an entry the host
+	// supplies as nil reads as not-an-entity, so an arrow through it is 0.
 	Entities map[string]*Entity
 
 	// QueryFuncs optionally maps a query.<name> member (lower-case) to a
@@ -116,7 +140,131 @@ type Context struct {
 	// question the engine's missing-variable handler asks: is the stack
 	// empty? See eval/unresolved.go.
 	catchDepth int
+
+	// cur is the entity whose scope the right side of an arrow is being
+	// evaluated in, or nil for the expression's own. See CurrentEntity.
+	cur *Entity
+
+	// The entity reference tables -- see EntityRef and EntityArrayRef. A
+	// reference is an index into these, encoded as a number; the tables are
+	// what turn it back into an entity.
+	entities     []*Entity
+	entityIndex  map[*Entity]int
+	entityArrays [][]*Entity
 }
+
+// ---------------------------------------------------------------------
+// Entity references
+//
+// The game's value type can hold an entity, and an expression passes one
+// around like a number: `v.e = c.other;` stores it, `v.e->q.health` reads
+// through it, `t.e == v.e` compares it. This package's value type is float64,
+// so an entity is carried the same way a string literal is: as a numeric
+// handle no genuine number reaches, decoded back through a table on the
+// Context that produced it.
+//
+// The handle ranges are chosen so every handle is an exact float32 integer
+// and survives Round32 unchanged, and so they cannot collide with each other
+// or with string ids (which live in [-(2^24 - 1), -2^23]):
+//
+//	entity k        -> -(2^24) - 2*(k+1)  : even integers in (-2^25, -2^24)
+//	entity array k  -> -(2^25) - 4*(k+1)  : multiples of 4 in (-2^26, -2^25)
+//
+// float32 represents every even integer below 2^25 in magnitude and every
+// multiple of 4 below 2^26, so both ranges round-trip exactly. A handle is
+// only meaningful to the Context that made it; one stored into a variable and
+// read back in a later Run of the same Context still resolves, which is what
+// a pack that remembers a target across evaluations relies on.
+// ---------------------------------------------------------------------
+
+const (
+	entityHandleBase = -(1 << 24)
+	entityHandleStep = 2
+	entityArrayBase  = -(1 << 25)
+	entityArrayStep  = 4
+)
+
+// EntityRef returns the reference an expression uses for e: the value a
+// `context.` name bound to e reads as, the value for_each writes to its loop
+// variable, and the value a host QueryFunc returns to hand an entity to the
+// expression. The same entity always gets the same reference within a
+// Context. A nil entity is not an entity, and gets 0.
+func (ctx *Context) EntityRef(e *Entity) float64 {
+	if e == nil {
+		return 0
+	}
+	if k, ok := ctx.entityIndex[e]; ok {
+		return float64(entityHandleBase - entityHandleStep*(k+1))
+	}
+	if ctx.entityIndex == nil {
+		ctx.entityIndex = map[*Entity]int{}
+	}
+	k := len(ctx.entities)
+	ctx.entities = append(ctx.entities, e)
+	ctx.entityIndex[e] = k
+	return float64(entityHandleBase - entityHandleStep*(k+1))
+}
+
+// EntityArrayRef returns a reference to a list of entities -- what a host
+// query such as `query.get_nearby_entities` returns, and the one thing a
+// for_each walks: each pass writes EntityRef of the next element to the loop
+// variable. Every call makes a new reference, even for an equal list.
+func (ctx *Context) EntityArrayRef(es []*Entity) float64 {
+	k := len(ctx.entityArrays)
+	ctx.entityArrays = append(ctx.entityArrays, es)
+	return float64(entityArrayBase - entityArrayStep*(k+1))
+}
+
+// EntityOf decodes a value back to the entity it references, or nil when the
+// value is not an entity reference made by this Context -- a plain number, a
+// string, an array reference, or a reference from another Context.
+func (ctx *Context) EntityOf(v float64) *Entity {
+	k, ok := decodeHandle(v, entityHandleBase, entityHandleStep, len(ctx.entities))
+	if !ok {
+		return nil
+	}
+	return ctx.entities[k]
+}
+
+// EntityArrayOf decodes a value back to the entity list it references. The
+// second result is false when the value is not an entity array reference.
+func (ctx *Context) EntityArrayOf(v float64) ([]*Entity, bool) {
+	k, ok := decodeHandle(v, entityArrayBase, entityArrayStep, len(ctx.entityArrays))
+	if !ok {
+		return nil, false
+	}
+	return ctx.entityArrays[k], true
+}
+
+func decodeHandle(v float64, base, step, n int) (int, bool) {
+	if v >= float64(base) || v != math.Trunc(v) {
+		return 0, false
+	}
+	off := float64(base) - v
+	if off > float64(step*n) {
+		return 0, false
+	}
+	k := int(off)/step - 1
+	if float64(step*(k+1)) != off || k < 0 || k >= n {
+		return 0, false
+	}
+	return k, true
+}
+
+// ClearEntityRefs forgets every entity and entity-array reference this
+// Context has handed out, so a long-lived Context does not keep every entity
+// it ever saw alive. Afterwards a reference still held in a variable decodes
+// as not-an-entity, and an arrow through it reads 0 -- the same as the game
+// gives for an entity that has since been removed.
+func (ctx *Context) ClearEntityRefs() {
+	ctx.entities, ctx.entityIndex, ctx.entityArrays = nil, nil, nil
+}
+
+// CurrentEntity is the entity whose variables and queries a read resolves
+// against right now: the one on the left of the arrow while its right side
+// is being evaluated, and nil the rest of the time. A QueryFunc registered in
+// Context.QueryFuncs consults it to answer for the right entity.
+func (ctx *Context) CurrentEntity() *Entity { return ctx.cur }
 
 // ---------------------------------------------------------------------
 // String interning

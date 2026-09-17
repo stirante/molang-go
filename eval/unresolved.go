@@ -97,8 +97,10 @@ package eval
 // catchDepth lives on the Context because a Context is one evaluation's
 // state, already caller-owned and already non-concurrent. Program.Run resets
 // it on entry and restores it on exit, so a program run from inside a host
-// QueryFunc that was itself called from inside a `??`'s LHS does not mistake
-// the outer program's catch frame for one of its own.
+// QueryFunc starts with an empty catch stack of its own rather than
+// inheriting the caller's. (The left side of `??` is only ever a bare
+// variable read, so no host code actually runs inside an open frame; the
+// reset costs nothing and keeps nested runs independent regardless.)
 
 // returnSignal carries a `return` raised from inside an expression out to the
 // program root. See compileExpr's CondBlockStmt case for when that happens and
@@ -138,9 +140,10 @@ type unresolvedRead struct {
 // that true.
 //
 // It deliberately does NOT catch anything else. A non-sentinel panic is
-// re-panicked with its original value so a genuine bug in a host QueryFunc
-// (or in this package) is never quietly converted into "the left side was
-// unresolved, take the right side".
+// re-panicked with its original value so a genuine bug in this package is
+// never quietly converted into "the left side was unresolved, take the
+// right side". (Host code cannot run inside the frame -- the left side is a
+// bare variable read -- so this is defence against this package only.)
 func catchUnresolved(fn exprFn, ctx *Context) (v float64, resolved bool) {
 	ctx.catchDepth++
 	defer func() {

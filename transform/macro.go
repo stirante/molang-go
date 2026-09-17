@@ -131,6 +131,7 @@ func (e *expander) stmt(s ast.Stmt) ast.Stmt {
 		e.block(s.Body)
 		return s
 	case *ast.ForEachStmt:
+		s.Source = e.expr(s.Source)
 		e.block(s.Body)
 		return s
 	case *ast.CondBlockStmt:
@@ -178,6 +179,7 @@ func (e *expander) expr(x ast.Expr) ast.Expr {
 	case *ast.CondBlockStmt:
 		return e.condBlock(x)
 	case *ast.ArrowExpr:
+		x.Entity = e.expr(x.Entity)
 		x.Read = e.expr(x.Read)
 		return x
 

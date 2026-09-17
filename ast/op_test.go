@@ -82,7 +82,7 @@ func TestEveryReportableOpHasAName(t *testing.T) {
 		"-1", "!1", "1 + 1", "1 - 1", "1 * 1", "1 / 1",
 		"1 < 1", "1 <= 1", "1 > 1", "1 >= 1", "1 == 1", "1 != 1",
 		"1 && 1", "1 || 1", "v.x ?? 1", "1 ? 2 : 3", "math.pi", "'s' == 's'",
-		"v.a = 1", "t.a = 1", "c.x", "q.x", "array.a[0]", "this",
+		"v.a = 1;", "t.a = 1;", "c.x", "q.x", "array.a[0]", "this",
 		"geometry.g == geometry.h", "material.m == material.n", "texture.t == texture.u",
 		"c.e->v.x", "return 1;", "loop(1, { break; });", "loop(1, { continue; });",
 		"for_each(t.x, array.a, { t.s = 1; });",

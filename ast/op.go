@@ -31,6 +31,11 @@ type Op uint8
 
 // The operations this package's AST can express. Values are the engine's.
 const (
+	// OpLeftParenthesis is pure syntax and never survives into a tree. It
+	// has a constant only because the engine names it when refusing a
+	// parenthesized left side of `=`, and the parser has to say the same.
+	OpLeftParenthesis Op = 4
+
 	OpNegate     Op = 6 // -x
 	OpLogicalNot Op = 7 // !x
 
@@ -102,7 +107,10 @@ const (
 	OpPointer    Op = 72 // '->'
 	OpSemicolon  Op = 73
 	OpReturn     Op = 74
-	OpThis       Op = 76
+	// OpComma is syntax, like OpLeftParenthesis, and exists so a stray comma
+	// can be refused in the engine's words.
+	OpComma Op = 75
+	OpThis  Op = 76
 
 	OpInverseLerp Op = 78
 
@@ -146,6 +154,7 @@ const opCount = 109
 // means an error from this package and an error from the game name the same
 // thing the same way.
 var opNames = map[Op]string{
+	OpLeftParenthesis:    "Left Parenthesis '('",
 	OpNegate:             "Negate '-'",
 	OpLogicalNot:         "Logical Not '!'",
 	OpAbs:                "Absolute Value 'math.abs'",
@@ -211,6 +220,7 @@ var opNames = map[Op]string{
 	OpPointer:            "Pointer '->'",
 	OpSemicolon:          "Semicolon ';'",
 	OpReturn:             "Return 'return'",
+	OpComma:              "Comma ','",
 	OpThis:               "This 'this'",
 	OpInverseLerp:        "Inverse Lerp 'math.inverse_lerp'",
 	OpEaseInQuad:         "Ease In Quad 'math.ease_in_quad'",
@@ -447,8 +457,10 @@ func (c *opCollector) stmt(s Stmt) {
 		c.block(n.Body)
 	case *ForEachStmt:
 		c.set.Add(OpForEach)
-		c.set.Add(OpArrayVariable)
 		c.ident(n.Var)
+		// A bare `array.<name>` source is an Array-namespace Ident, which
+		// reports ArrayVariable exactly as naming an array anywhere does.
+		c.expr(n.Source)
 		c.block(n.Body)
 	}
 }
@@ -522,10 +534,10 @@ func (c *opCollector) expr(e Expr) {
 		c.expr(n.Else)
 	case *ArrowExpr:
 		c.set.Add(OpPointer)
-		// The entity is named through the context. namespace, which is the
-		// operation the token carries even though Refs treats the name as a
-		// dereference rather than a read.
-		c.ident(n.Entity)
+		// The left side carries whatever operation names the entity -- a
+		// context. read, a variable read, a query call -- even though Refs
+		// treats a context. name there as a dereference rather than a read.
+		c.expr(n.Entity)
 		c.expr(n.Read)
 	case *ArrayAccess:
 		c.set.Add(OpArrayVariable)

@@ -189,8 +189,8 @@ func scopeBag(sc *eval.Scope, ns string) (map[string]float64, bool, error) {
 // number and order of draws is part of what this library reproduces.
 func newRNG(seed uint) eval.RNG { return mtrand.New(uint32(seed)) }
 
-func extensions(comments bool) parser.Extensions {
-	return parser.Extensions{Comments: comments}
+func extensions(o *options) parser.Extensions {
+	return parser.Extensions{Comments: o.comments, OptionalSemicolons: o.optionalSemicolons}
 }
 
 // formatValue prints an evaluated result the way a person reads it: whole

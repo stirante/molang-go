@@ -3,6 +3,7 @@ package transform_test
 import (
 	"math"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stirante/molang-go/ast"
@@ -38,7 +39,13 @@ func TestFoldConstants(t *testing.T) {
 		{"math.pi", strconv.FormatFloat(eval.Round32(math.Pi), 'f', -1, 64)},
 		{"1 < 2", "1"},
 		{"1 ? 2 : 3", "2"},
-		{"t.x = 3 + 4", "t.x=7"},
+		{"t.x = 3 + 4;", "t.x=7;"},
+		// The right side of `??` folds; the left side is a variable read
+		// and stays, as does the operator.
+		{"v.x ?? 1 + 2", "v.x??3"},
+		{"v.x ?? 1 ? 2 : 3", "v.x??2"},
+		{"(v.x) ?? 3", "v.x??3"},
+		{"1 ? (v.x ?? 2) : 3", "v.x??2"},
 	}
 	for _, tc := range cases {
 		tree, err := parser.Parse(tc.src)
@@ -50,6 +57,26 @@ func TestFoldConstants(t *testing.T) {
 		if got != tc.wantFolded {
 			t.Errorf("fold(%q) = %q, want %q", tc.src, got, tc.wantFolded)
 		}
+	}
+}
+
+// TestFoldLeavesCoalesceLeftSide: a `??` whose left side is not a variable
+// read cannot come out of the parser, but a tree built by hand can carry
+// one. The folder must not turn it into its left operand -- that would make
+// a program the game refuses to load into one that runs -- and Compile
+// refuses it with the game's wording, the same as the parser does.
+func TestFoldLeavesCoalesceLeftSide(t *testing.T) {
+	tree := &ast.Program{Stmts: []ast.Stmt{&ast.ExprStmt{X: &ast.BinaryExpr{
+		Op: ast.NullCoalesce,
+		X:  &ast.NumberLit{Value: 3},
+		Y:  &ast.NumberLit{Value: 5},
+	}}}}
+	folded := transform.FoldConstants(tree)
+	if got := printer.Minify(folded); got != "3??5" {
+		t.Errorf("fold(3 ?? 5) = %q, want the tree left alone", got)
+	}
+	if _, err := eval.Compile(folded); err == nil || !strings.Contains(err.Error(), "left-hand-side of ?? expression") {
+		t.Errorf("Compile(3 ?? 5) = %v, want the game's refusal", err)
 	}
 }
 

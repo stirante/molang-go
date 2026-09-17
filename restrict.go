@@ -16,9 +16,9 @@ import (
 // loads in one field and is refused in another.
 //
 // This matters to anything using this package to predict whether a pack will
-// load: parsing here is necessary but NOT sufficient. `math.max(v.a = 5, 3)`
-// parses -- an assignment is an ordinary operand -- and still fails to load
-// wherever assignment is not on the allow-list.
+// load: parsing here is necessary but NOT sufficient. `q.foo(v.a = 5);`
+// parses -- an assignment is an ordinary argument to a query -- and still
+// fails to load wherever assignment is not on the allow-list.
 //
 // What this package cannot model: the engine's list also numbers pure syntax
 // (braces, parentheses, the comma, the member-accessor dot) and a few

@@ -39,6 +39,21 @@ type Extensions struct {
 	// place, turns this on; anything checking whether a pack will load
 	// leaves it off.
 	Comments bool
+
+	// OptionalSemicolons lifts the game's two semicolon rules: that a brace
+	// section contains at least one `;`, and that an expression containing
+	// `=` or `;` anywhere ends with one. `v.x = 1` and `loop(2, {v.n = 1})`
+	// then parse, though neither loads in the game.
+	//
+	// It exists for fragments and interactive use -- a REPL line, a snippet
+	// in documentation -- where demanding the trailing `;` is noise. It
+	// changes what a program MEANS as well as whether it parses: without the
+	// trailing `;`, `v.x = 5` is a bare expression and evaluates to 5, where
+	// `v.x = 5;` evaluates to 0 (see ast.Program.HasSemicolon).
+	//
+	// The lexer does not read this; the parser does. It lives here because
+	// this is the one Extensions type.
+	OptionalSemicolons bool
 }
 
 // Lexer scans the source as BYTES, not runes.

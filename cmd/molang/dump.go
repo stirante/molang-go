@@ -121,14 +121,16 @@ func describeStmt(s ast.Stmt) *node {
 			child{Name: "body", Node: describeBlock(t.Body)},
 		)}
 	case *ast.ForEachStmt:
-		return &node{
-			Kind:  "ForEachStmt",
-			Attrs: map[string]any{"name": "array." + t.Array},
-			Children: kids(
-				child{Name: "var", Node: describeExpr(t.Var)},
-				child{Name: "body", Node: describeBlock(t.Body)},
-			),
+		n := &node{Kind: "ForEachStmt", Children: kids(
+			child{Name: "var", Node: describeExpr(t.Var)},
+		)}
+		if name, ok := t.ArrayName(); ok {
+			n.Attrs = map[string]any{"name": "array." + name}
+		} else {
+			n.Children = append(n.Children, child{Name: "source", Node: describeExpr(t.Source)})
 		}
+		n.Children = append(n.Children, child{Name: "body", Node: describeBlock(t.Body)})
+		return n
 	case nil:
 		return nil
 	default:

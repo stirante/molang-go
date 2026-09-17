@@ -65,6 +65,9 @@ func runREPL(args []string) error {
 	if opts.comments {
 		fmt.Fprintln(r.out, "(# comments accepted -- an extension, not vanilla Molang)")
 	}
+	if opts.optionalSemicolons {
+		fmt.Fprintln(r.out, "(missing ';' accepted -- the game would refuse those lines)")
+	}
 	r.out.Flush()
 
 	in := bufio.NewScanner(os.Stdin)
@@ -123,7 +126,7 @@ func (r *repl) dispatch(line string) (quit bool) {
 }
 
 func (r *repl) parse(src string) (*ast.Program, bool) {
-	tree, err := parser.ParseWith(src, extensions(r.opts.comments))
+	tree, err := parser.ParseWith(src, extensions(r.opts))
 	if err != nil {
 		fmt.Fprintf(r.out, "%v\n", err)
 		return nil, false

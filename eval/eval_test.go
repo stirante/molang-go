@@ -193,15 +193,20 @@ func TestLoopCounterMax(t *testing.T) {
 		{"t.n=0;loop(1024,{t.n=t.n+1;});return t.n;", 1024},
 		{"t.n=0;loop(1025,{t.n=t.n+1;});return t.n;", eval.LoopCounterMax},
 		{"t.n=0;loop(1000000,{t.n=t.n+1;});return t.n;", eval.LoopCounterMax},
-		// A count that is not a whole number truncates toward zero, as it
-		// always did -- the cap changes nothing below it.
-		{"t.n=0;loop(3.9,{t.n=t.n+1;});return t.n;", 3},
-		// Non-positive and non-finite counts run the body zero times.
-		// `int(NaN)` in Go is explicitly undefined, so this case used to
-		// be platform-dependent rather than merely unspecified.
+		// A count that is not a whole number rounds UP: the engine runs
+		// the body while its counter is above zero and takes one off it
+		// per pass, starting from the count itself. This used to truncate
+		// (3.9 -> 3, 0.5 -> 0), which was the documentation's word rather
+		// than the binary's. The cap changes nothing below it.
+		{"t.n=0;loop(3.9,{t.n=t.n+1;});return t.n;", 4},
+		{"t.n=0;loop(2.5,{t.n=t.n+1;});return t.n;", 3},
+		{"t.n=0;loop(0.5,{t.n=t.n+1;});return t.n;", 1},
+		// Counts not above zero to begin with -- zero, negative, NaN --
+		// run the body zero times. `int(NaN)` in Go is explicitly
+		// undefined, so the NaN case used to be platform-dependent rather
+		// than merely unspecified.
 		{"t.n=0;loop(0,{t.n=t.n+1;});return t.n;", 0},
 		{"t.n=0;loop(-5,{t.n=t.n+1;});return t.n;", 0},
-		{"t.n=0;loop(0.5,{t.n=t.n+1;});return t.n;", 0},
 		{"t.n=0;loop(math.sqrt(-1),{t.n=t.n+1;});return t.n;", 0},
 	}
 	for _, c := range cases {
@@ -304,14 +309,21 @@ func TestTrailingSemicolonMakesASequence(t *testing.T) {
 		{"return 1+1;", 2},
 		{"return temp.a=5;", 5},
 		{"temp.a=5;return temp.a;", 5},
-		// A bare `{ ... }` grouping block has no top-level ';' and keeps
-		// bare-expression semantics, which is what the real terraform
-		// expressions in the corpus rely on.
+		// A bare `{ ... }` grouping block yields 0 unless it returns, with
+		// or without the trailing ';'.
 		{"{return 7;}", 7},
 		{"{temp.a=5;}", 0},
+		{"{return 7;};", 7},
+		{"{temp.a=5;};", 0},
 	}
 	for _, c := range cases {
-		p, err := compile(t, c.src)
+		// Some of these break the game's semicolon rules on purpose: what
+		// is pinned is what HasSemicolon means once a tree exists.
+		tree, err := parser.ParseWith(c.src, parser.Extensions{OptionalSemicolons: true})
+		if err != nil {
+			t.Fatalf("parse(%q): %v", c.src, err)
+		}
+		p, err := eval.Compile(tree)
 		if err != nil {
 			t.Fatalf("compile(%q): %v", c.src, err)
 		}

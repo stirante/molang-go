@@ -75,6 +75,12 @@ func Compile(prog *ast.Program) (compiled *Program, err error) {
 	}()
 
 	c := &compiler{}
+	// The game refuses a tree that nests too deep, and a tree built by
+	// hand or by a transform never met the parser's check of that. Measured
+	// as the tree would be written, before anything recurses into it.
+	if ast.Depth(prog, nil) >= ast.DepthLimit {
+		c.fail("%s", ast.DepthOverflowMessage)
+	}
 	stmts := make([]stmtFn, len(prog.Stmts))
 	for i, s := range prog.Stmts {
 		stmts[i] = c.compileStmt(s)
@@ -118,14 +124,10 @@ func Compile(prog *ast.Program) (compiled *Program, err error) {
 				if sig == SigReturn {
 					return v
 				}
-				// A stray break/continue at top level (outside any loop)
-				// is a no-op yielding 0, matching the engine: the
-				// compiled break instruction finds the break-address
-				// stack empty, fires the engine's assert handler --
-				// a debug assert, inert in a release build -- then
-				// writes 0 and continues -- so at runtime it is not an
-				// error at all. Whether a separate load-time validation
-				// pass rejects it before that point was not checked.
+				// A stray continue at top level (outside any loop) is a
+				// no-op yielding 0. A stray break never gets here: the
+				// game refuses the expression when it loads, and so does
+				// compileStmt.
 			}
 			return 0
 		}
@@ -169,7 +171,18 @@ type compiler struct {
 	// mechanism -- i.e. whether this program can abort mid-evaluation, and
 	// therefore whether Compile needs to install the top-level recover.
 	canAbort bool
+
+	// loopDepth counts the loop()/for_each() bodies being compiled, so a
+	// `break` outside every loop can be refused as the game refuses it.
+	loopDepth int
 }
+
+// The parser applies the game's load-time shape rules as it reads source,
+// where it can point at a character. Compile applies the same rules to the
+// tree it is given, because a tree built by hand or rewritten by a transform
+// never went through the parser, and the game would refuse the source it
+// prints to just the same. The predicates are shared (package ast), so the
+// two cannot disagree about what is refused.
 
 func (c *compiler) fail(format string, args ...any) {
 	panic(&Error{Msg: fmt.Sprintf(format, args...)})
@@ -206,6 +219,17 @@ func isTruthy(v float64) bool {
 func (c *compiler) compileStmt(s ast.Stmt) stmtFn {
 	switch s := s.(type) {
 	case *ast.ExprStmt:
+		// A conditional with a block arm, standing as a statement, is
+		// compiled as one, so a break or continue inside the block reaches
+		// the enclosing loop exactly as it does from `cond ? { ... };`.
+		switch x := s.X.(type) {
+		case *ast.CondBlockStmt:
+			return c.compileCondBlock(x)
+		case *ast.TernaryExpr:
+			if hasBlockArm(x) {
+				return c.compileArm(x)
+			}
+		}
 		xFn := c.compileExpr(s.X)
 		return func(ctx *Context) (float64, Signal) { return xFn(ctx), SigNone }
 
@@ -217,6 +241,9 @@ func (c *compiler) compileStmt(s ast.Stmt) stmtFn {
 		return func(ctx *Context) (float64, Signal) { return vFn(ctx), SigReturn }
 
 	case *ast.BreakStmt:
+		if c.loopDepth == 0 {
+			c.fail("%s", ast.BreakOutsideLoopMessage)
+		}
 		return func(ctx *Context) (float64, Signal) { return 0, SigBreak }
 
 	case *ast.ContinueStmt:
@@ -233,6 +260,51 @@ func (c *compiler) compileStmt(s ast.Stmt) stmtFn {
 	}
 	c.fail("compile: unhandled statement %T", s)
 	panic("unreachable")
+}
+
+// hasBlockArm reports whether a ternary has a block for either arm, directly
+// or through a ternary nested in an arm.
+func hasBlockArm(t *ast.TernaryExpr) bool {
+	for _, arm := range []ast.Expr{t.Then, t.Else} {
+		switch a := arm.(type) {
+		case *ast.CondBlockStmt:
+			return true
+		case *ast.TernaryExpr:
+			if hasBlockArm(a) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// compileArm compiles one arm of a statement-position conditional as a
+// statement: a block arm keeps its control-flow signal, a ternary recurses,
+// and a value arm yields its value with no signal. The value of the whole
+// statement is only ever observed as a single-statement program's result,
+// where a block arm yields 0 unless it returns -- the same as everywhere
+// else a block appears.
+func (c *compiler) compileArm(e ast.Expr) stmtFn {
+	switch x := e.(type) {
+	case nil:
+		return func(*Context) (float64, Signal) { return 0, SigNone }
+	case *ast.CondBlockStmt:
+		return c.compileCondBlock(x)
+	case *ast.TernaryExpr:
+		if hasBlockArm(x) {
+			condFn := c.compileExpr(x.Cond)
+			thenFn := c.compileArm(x.Then)
+			elseFn := c.compileArm(x.Else)
+			return func(ctx *Context) (float64, Signal) {
+				if isTruthy(condFn(ctx)) {
+					return thenFn(ctx)
+				}
+				return elseFn(ctx)
+			}
+		}
+	}
+	xFn := c.compileExpr(e)
+	return func(ctx *Context) (float64, Signal) { return xFn(ctx), SigNone }
 }
 
 func (c *compiler) compileBlock(b *ast.Block) stmtFn {
@@ -329,24 +401,34 @@ const LoopCounterMax = 1024
 // -- the count is an arbitrary expression, so `loop(v.n, {...})` is only
 // knowable at run time.
 //
-// Non-finite and non-positive counts collapse to zero iterations. That is
-// not merely tidiness: Go leaves float64->int conversion undefined for NaN
-// and out-of-range values, so the previous bare `int(count)` was
-// platform-dependent for `loop(0/0, {...})` -- on amd64 it produced a large
-// negative (harmless by luck), not a defined zero.
+// A fractional count rounds UP, not down: the engine runs the body while
+// its counter is above zero and takes one off it per pass, starting from
+// the count itself, so `loop(2.5, ...)` runs three times and `loop(0.5,
+// ...)` once. Only a count that is not above zero to begin with -- zero,
+// negative, NaN -- runs nothing. (Go leaves float64->int conversion
+// undefined for NaN and out-of-range values, which is the other reason the
+// count is tested before it is converted.)
 func loopIterations(count float64) int {
-	if math.IsNaN(count) || count < 1 {
+	if math.IsNaN(count) || count <= 0 {
 		return 0
 	}
 	if count >= LoopCounterMax {
 		return LoopCounterMax
 	}
-	return int(count)
+	return int(math.Ceil(count))
+}
+
+// compileLoopBody compiles a loop body with the loop depth raised, so a
+// break inside it is known to be inside a loop.
+func (c *compiler) compileLoopBody(b *ast.Block) stmtFn {
+	c.loopDepth++
+	defer func() { c.loopDepth-- }()
+	return c.compileBlock(b)
 }
 
 func (c *compiler) compileLoop(l *ast.LoopStmt) stmtFn {
 	countFn := c.compileExpr(l.Count)
-	bodyFn := c.compileBlock(l.Body)
+	bodyFn := c.compileLoopBody(l.Body)
 	return func(ctx *Context) (float64, Signal) {
 		n := loopIterations(countFn(ctx))
 		for i := 0; i < n; i++ {
@@ -364,8 +446,27 @@ func (c *compiler) compileLoop(l *ast.LoopStmt) stmtFn {
 	}
 }
 
-// compileForEach walks a host array, writing each element to the loop
+// compileForEach walks the loop's source, writing each element to the loop
 // variable before running the body.
+//
+// What is walked depends on the source:
+//
+//   - A bare `array.<name>` walks the host array (Scope.Array) numerically.
+//     This is THIS PACKAGE'S EXTENSION: the game iterates entity arrays
+//     only, and has no host arrays of numbers to walk. What it adds is a
+//     loop over data the host supplies, with the same break/continue/return
+//     behaviour as a real walk.
+//   - Anything else is evaluated, so its side effects and random draws
+//     happen in order, and then walked according to what it produced. In
+//     the game the source is an entity array, typically a query such as
+//     `q.get_nearby_entities(4, 'player')`; here that is a host QueryFunc
+//     returning Context.EntityArrayRef, and each pass writes a reference to
+//     the next entity (Context.EntityRef) to the loop variable, ready for
+//     `t.e->q.health` in the body. A value that is not an entity array --
+//     a number, a single entity, a string -- walks ZERO times, which is the
+//     game's answer too: only an entity array has elements to walk. A loop
+//     over no entities is an ordinary fact about the world, not an error,
+//     and the loop variable is left untouched.
 //
 // break and continue behave as they do in loop(). A return ends the whole
 // program, not just the walk -- the same as everywhere else, because the
@@ -376,12 +477,10 @@ func (c *compiler) compileLoop(l *ast.LoopStmt) stmtFn {
 // answer as an empty one, and there is nothing to report: a for_each over
 // nothing is not an error in any reading of the language.
 func (c *compiler) compileForEach(f *ast.ForEachStmt) stmtFn {
-	name := f.Array
-	bodyFn := c.compileBlock(f.Body)
-	ns, member := f.Var.Namespace, f.Var.Member
-	return func(ctx *Context) (float64, Signal) {
-		arr := ctx.Scope.Array[name]
-		for _, elem := range arr {
+	bodyFn := c.compileLoopBody(f.Body)
+	ns, member := f.Var.Namespace, strings.ToLower(f.Var.Member)
+	walk := func(ctx *Context, elems []float64) (float64, Signal) {
+		for _, elem := range elems {
 			bag := ctx.Scope.Temp
 			if ns == ast.Variable {
 				bag = ctx.Scope.Variable
@@ -398,6 +497,23 @@ func (c *compiler) compileForEach(f *ast.ForEachStmt) stmtFn {
 			}
 		}
 		return 0, SigNone
+	}
+	if name, isArray := f.ArrayName(); isArray {
+		return func(ctx *Context) (float64, Signal) {
+			return walk(ctx, ctx.Scope.Array[name])
+		}
+	}
+	sourceFn := c.compileExpr(f.Source)
+	return func(ctx *Context) (float64, Signal) {
+		ents, ok := ctx.EntityArrayOf(sourceFn(ctx))
+		if !ok {
+			return 0, SigNone
+		}
+		refs := make([]float64, len(ents))
+		for i, e := range ents {
+			refs[i] = ctx.EntityRef(e)
+		}
+		return walk(ctx, refs)
 	}
 }
 
@@ -429,8 +545,13 @@ func (c *compiler) compileExpr(e ast.Expr) exprFn {
 		xFn := c.compileExpr(e.X)
 		switch e.Op {
 		case ast.Neg:
+			c.checkNumeric(ast.OpNegate, e.X)
+			if ast.NegatesArrayElement(e.X) {
+				c.fail("%s", ast.ArrayElementMathMessage)
+			}
 			return func(ctx *Context) float64 { return Round32(-xFn(ctx)) }
 		case ast.LNot:
+			c.checkNumeric(ast.OpLogicalNot, e.X)
 			return func(ctx *Context) float64 {
 				if xFn(ctx) == 0 {
 					return 1
@@ -452,57 +573,7 @@ func (c *compiler) compileExpr(e ast.Expr) exprFn {
 		return func(ctx *Context) float64 { return Round32(ctx.This) }
 
 	case *ast.ArrowExpr:
-		// A read against another entity. A name with no entity behind it
-		// reads 0, and so does a query the entity does not answer.
-		//
-		// This is NOT the unresolved-read mechanism: reaching for a missing
-		// entity does not end the expression. `v.x = c.nobody->v.y;` still
-		// assigns, and assigns 0. That asymmetry is deliberate in the
-		// language -- a missing VARIABLE is a mistake worth stopping for, a
-		// missing ENTITY is an ordinary fact about the world.
-		entity := strings.ToLower(e.Entity.Member)
-		switch r := e.Read.(type) {
-		case *ast.Ident:
-			member := strings.ToLower(r.Member)
-			isVar := r.Namespace == ast.Variable
-			return func(ctx *Context) float64 {
-				ent := ctx.Entities[entity]
-				if ent == nil {
-					return 0
-				}
-				if isVar {
-					return Round32(ent.Variable[member])
-				}
-				if fn := ent.QueryFuncs[member]; fn != nil {
-					return Round32(fn(nil, ctx))
-				}
-				return 0
-			}
-		case *ast.CallExpr:
-			member := strings.ToLower(r.Callee.Member)
-			argFns := make([]exprFn, len(r.Args))
-			for i, a := range r.Args {
-				argFns[i] = c.compileExpr(a)
-			}
-			return func(ctx *Context) float64 {
-				// The arguments are evaluated whether or not anything
-				// answers, so RNG draws inside them keep their order.
-				args := make([]float64, len(argFns))
-				for i, fn := range argFns {
-					args[i] = fn(ctx)
-				}
-				ent := ctx.Entities[entity]
-				if ent == nil {
-					return 0
-				}
-				if fn := ent.QueryFuncs[member]; fn != nil {
-					return Round32(fn(args, ctx))
-				}
-				return 0
-			}
-		}
-		c.fail("compile: unsupported read through '->'")
-		panic("unreachable")
+		return c.compileArrow(e)
 
 	case *ast.ArrayAccess:
 		// The index is truncated toward zero, a negative one reads element
@@ -587,7 +658,99 @@ func (c *compiler) compileExpr(e ast.Expr) exprFn {
 	panic("unreachable")
 }
 
+// compileArrow compiles `<entity>-><read>`, a read against another entity.
+//
+// The left side is evaluated first, as any operand is. If its value is an
+// entity reference (see Context.EntityRef) the right side is then evaluated
+// with that entity as the CURRENT one, and evaluated in full -- a query call
+// through the arrow evaluates its arguments in the other entity's scope too,
+// so `c.other->q.f(v.x)` passes the OTHER entity's v.x. What the current
+// entity changes, and what it does not:
+//
+//   - variable. reads come from the entity's published variables, and a
+//     name it has not published reads 0. This is not the unresolved-read
+//     mechanism: it neither diverts a `??` nor ends the expression.
+//   - query. reads and calls are answered by the entity's own QueryFuncs,
+//     then by Context.QueryFuncs (which can consult CurrentEntity), and
+//     otherwise read 0.
+//   - temp. reads are the expression's own, as in the game, where temps
+//     belong to the evaluation rather than to either entity.
+//   - context. reads and assignments stay the expression's own. That is
+//     this package's choice where the game's behaviour was not established:
+//     nothing sensible writes through an arrow's argument list.
+//
+// If the left side is NOT an entity -- a plain number, a name bound to
+// nothing, a reference to an entity since cleared -- the whole arrow reads 0
+// and the right side is skipped entirely, arguments included, so a random
+// draw inside them is not consumed. That skip is the game's, and it is the
+// one place an argument list is not evaluated. Reaching for a missing entity
+// does not end the expression either: `v.x = c.nobody->v.y;` still assigns,
+// and assigns 0. A missing VARIABLE is a mistake worth stopping for; a missing
+// ENTITY is an ordinary fact about the world.
+func (c *compiler) compileArrow(e *ast.ArrowExpr) exprFn {
+	entityFn := c.compileExpr(e.Entity)
+	readFn := c.compileExpr(e.Read)
+	return func(ctx *Context) float64 {
+		ent := ctx.EntityOf(entityFn(ctx))
+		if ent == nil {
+			return 0
+		}
+		return readThrough(ctx, ent, readFn)
+	}
+}
+
+// readThrough evaluates fn with ent as the current entity, restoring the
+// previous one however fn ends -- a `return` or an unresolved temp. read
+// inside a query's arguments unwinds through here as a panic.
+func readThrough(ctx *Context, ent *Entity, fn exprFn) float64 {
+	prev := ctx.cur
+	ctx.cur = ent
+	defer func() { ctx.cur = prev }()
+	return fn(ctx)
+}
+
+// entityQuery answers a query. read or call made while ent is the current
+// entity: the entity's own function first, then the host-wide one, else 0.
+func entityQuery(ctx *Context, ent *Entity, member string, args []float64) float64 {
+	if fn := ent.QueryFuncs[member]; fn != nil {
+		return Round32(fn(args, ctx))
+	}
+	if fn := ctx.QueryFuncs[member]; fn != nil {
+		return Round32(fn(args, ctx))
+	}
+	return 0
+}
+
+// checkNumeric refuses arg as an operand of op when it is not a number --
+// a string, a resource, an assignment -- with the game's wording. See
+// ast.IsNonNumericOperand.
+func (c *compiler) checkNumeric(op ast.Op, arg ast.Expr) {
+	if ast.IsNonNumericOperand(arg) {
+		c.fail("%s", ast.NonNumericOperandMessage(op, arg))
+	}
+}
+
 func (c *compiler) compileBinary(e *ast.BinaryExpr) exprFn {
+	if e.Op == ast.NullCoalesce && !ast.IsDirectVariableRef(e.X) {
+		// The parser already refuses this; a tree built or rewritten by
+		// hand can still carry it, and the game refuses it when the
+		// expression loads, which is what Compile stands in for.
+		c.fail("found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.")
+	}
+	// The same holds for the operand rules: == and != take anything, every
+	// other operator wants numbers, and an array element refuses a constant
+	// folded onto it. See parser's binary for the rules in full.
+	if op := ast.BinaryExprOp(e.Op); e.Op != ast.CmpEq && e.Op != ast.CmpNe && e.Op != ast.NullCoalesce {
+		c.checkNumeric(op, e.X)
+		if e.Op == ast.Sub {
+			c.checkNumeric(ast.OpNegate, e.Y)
+		} else {
+			c.checkNumeric(op, e.Y)
+		}
+	}
+	if ast.FoldsIntoArrayElement(e.Op, e.X, e.Y) {
+		c.fail("%s", ast.ArrayElementMathMessage)
+	}
 	xFn := c.compileExpr(e.X)
 	yFn := c.compileExpr(e.Y)
 	switch e.Op {
@@ -599,14 +762,12 @@ func (c *compiler) compileBinary(e *ast.BinaryExpr) exprFn {
 		// The engine has no separate binary Subtract opcode: its own
 		// operator/token metadata table lists Add ('+', id 9, arity 2) and
 		// Negate ('-', id 6, arity 1, UNARY only) but no "Subtract" entry
-		// anywhere in the table, and the engine's Molang tree builder
-		// processes Add/Multiply/Divide (ids 9/31/20) together as one
-		// arithmetic tier while Negate is folded in earlier by a separate
-		// negation-and-logical-not pass -- i.e. `a - b` is compiled as
-		// `a + (-b)`. That decomposition is exact in IEEE-754 (negation
-		// never rounds), so `Round32(x - y)` here is bit-for-bit identical
-		// to the engine's Add-of-Negate, without needing to model it as
-		// two opcodes.
+		// anywhere in the table. Its tree builder rewrites a binary `-` in
+		// its negation pass, before the `/`, `*` and `+` passes run one
+		// after another -- i.e. `a - b` is compiled as `a + (-b)`. That
+		// decomposition is exact in IEEE-754 (negation never rounds), so
+		// `Round32(x - y)` here is bit-for-bit identical to the engine's
+		// Add-of-Negate, without needing to model it as two opcodes.
 		return func(ctx *Context) float64 { return Round32(xFn(ctx) - yFn(ctx)) }
 	case ast.Mul:
 		// Multiply ('*', id 31, arity 2): individually pinned from its own
@@ -705,13 +866,14 @@ func (c *compiler) compileBinary(e *ast.BinaryExpr) exprFn {
 		}
 	case ast.NullCoalesce:
 		// `??` is a try/catch over its LHS, not a value test. It fires
-		// when the LHS performs a variable read that finds NO VALUE --
-		// which is a distinct state from reading the value 0, and is
-		// nothing to do with NaN. See eval/unresolved.go for the full
-		// derivation -- the engine's catch frames and its missing-variable
-		// handler -- and for why the catch is scoped to the LHS only, so
-		// `v.a ?? v.b` with both unset aborts the program rather than
-		// yielding 0.
+		// when the LHS -- always a bare variable read, see the check
+		// above -- finds NO VALUE, which is a distinct state from reading
+		// the value 0, and is nothing to do with NaN. See
+		// eval/unresolved.go for the full derivation -- the engine's catch
+		// frames and its missing-variable handler -- and for why the catch
+		// is scoped to the LHS only, so `v.a ?? v.b` with both unset
+		// aborts the program rather than yielding 0. The RHS is not
+		// evaluated at all when the LHS resolves.
 		//
 		// This replaces a NaN-coalescing reading that could never fire for
 		// the idiom real packs write: nothing in this value model produces
@@ -745,10 +907,10 @@ func boolExpr(xFn, yFn exprFn, cmp func(a, b float64) bool) exprFn {
 // returning it, since AssignExpr's own value is the assigned value.
 func (c *compiler) compileAssign(e *ast.AssignExpr) exprFn {
 	member := strings.ToLower(e.Target.Member)
-	switch e.Target.Namespace {
-	case ast.Temp, ast.Variable:
-	default:
-		c.fail("compile: invalid assignment target namespace %v", e.Target.Namespace)
+	// The parser only ever produces a temp. or variable. target; a tree
+	// built by hand is held to the same rule, in the game's words.
+	if msg := ast.AssignTargetProblem(e.Target); msg != "" {
+		c.fail("%s", msg)
 	}
 
 	// `v.y = v.x` where v.x has dotted members copies the members too, so
@@ -876,18 +1038,44 @@ func (c *compiler) compileIdentRead(id *ast.Ident) exprFn {
 		// query. deliberately does NOT participate: the engine rejects an
 		// unknown query name at tokenize time, so an unresolved query read
 		// is not a state its evaluator can be in. See eval/unresolved.go.
-		return func(ctx *Context) float64 { return Round32(ctx.Scope.Query[member]) }
+		//
+		// Through an arrow the read is answered by the other entity -- see
+		// compileArrow.
+		return func(ctx *Context) float64 {
+			if ctx.cur != nil {
+				return entityQuery(ctx, ctx.cur, member, nil)
+			}
+			return Round32(ctx.Scope.Query[member])
+		}
 	case ast.Variable:
-		return c.resolvedRead(id.Namespace, member, func(ctx *Context) map[string]float64 { return ctx.Scope.Variable })
+		// Through an arrow the read comes from the other entity's published
+		// variables, and a name it has not published is 0 rather than an
+		// unresolved read -- see compileArrow.
+		own := c.resolvedRead(id.Namespace, member, func(ctx *Context) map[string]float64 { return ctx.Scope.Variable })
+		return func(ctx *Context) float64 {
+			if ctx.cur != nil {
+				return Round32(ctx.cur.Variable[member])
+			}
+			return own(ctx)
+		}
 	case ast.Temp:
 		return c.resolvedRead(id.Namespace, member, func(ctx *Context) map[string]float64 { return ctx.Scope.Temp })
 	case ast.Context:
-		// context.* has no backing scope of its own (nothing in worldgen
-		// populates it), so it is read through the query bag. It DOES
-		// participate in the
-		// unresolved-read mechanism -- it is one of the namespaces backed
-		// by that same storage, unlike query.
-		return c.resolvedRead(id.Namespace, member, func(ctx *Context) map[string]float64 { return ctx.Scope.Query })
+		// A context. name the host has bound to an entity reads as a
+		// reference to it (Context.Entities) -- that is how `c.other->v.x`
+		// finds its entity, and how `v.e = c.other;` keeps hold of it.
+		//
+		// Otherwise context.* has no backing scope of its own (nothing in
+		// worldgen populates it), so it is read through the query bag. It
+		// DOES participate in the unresolved-read mechanism -- it is one of
+		// the namespaces backed by that same storage, unlike query.
+		bag := c.resolvedRead(id.Namespace, member, func(ctx *Context) map[string]float64 { return ctx.Scope.Query })
+		return func(ctx *Context) float64 {
+			if ent, bound := ctx.Entities[member]; bound {
+				return ctx.EntityRef(ent)
+			}
+			return bag(ctx)
+		}
 	case ast.Geometry, ast.Material, ast.Texture:
 		// A resource is a NAME, not a number. It goes through the same
 		// intern table as a string literal, which is what makes
@@ -950,12 +1138,22 @@ func (c *compiler) compileMathCall(call *ast.CallExpr, member string) exprFn {
 	if !ok {
 		c.fail("unknown math function 'math.%s'", call.Callee.Member)
 	}
+	op, _ := ast.MathOp(member)
 	if len(call.Args) != arity {
-		c.fail("math.%s expects %d argument(s), got %d", member, arity, len(call.Args))
+		// The game words a wrong argument count two ways, depending on the
+		// function: one taking a single argument is "malformed", one taking
+		// two or three has "an unexpected number of parameters".
+		if arity == 1 {
+			c.fail("Malformed %s expression. It has %d children but should have between %d and %d", op, len(call.Args), arity, arity)
+		}
+		c.fail("Unexpected number of parameters to %s function - expected %d, found %d.", op, arity, len(call.Args))
 	}
 	fn := mathTable[member]
 	argFns := make([]exprFn, len(call.Args))
 	for i, a := range call.Args {
+		// A math function takes numbers only: `math.abs('a')` and
+		// `math.max(v.a = 5, 3)` are refused, as the parser refuses them.
+		c.checkNumeric(op, a)
 		argFns[i] = c.compileExpr(a)
 	}
 	return func(ctx *Context) float64 {
@@ -1000,6 +1198,14 @@ func (c *compiler) compileNamespaceCall(call *ast.CallExpr, member string, bag f
 		args := make([]float64, len(argFns))
 		for i, af := range argFns {
 			args[i] = af(ctx)
+		}
+		if isQuery && ctx.cur != nil {
+			// A call through an arrow is answered by the other entity --
+			// see compileArrow.
+			return entityQuery(ctx, ctx.cur, member, args)
+		}
+		if !isQuery && ctx.cur != nil && call.Callee.Namespace == ast.Variable {
+			return Round32(ctx.cur.Variable[member])
 		}
 		if isQuery && ctx.QueryFuncs != nil {
 			if qf, ok := ctx.QueryFuncs[member]; ok {

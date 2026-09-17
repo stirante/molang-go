@@ -32,37 +32,43 @@ func Minify(prog *ast.Program) string {
 
 type minifier struct{}
 
-// program renders the top level. The one ';' Minify is NOT allowed to drop
-// is the trailing one on a single-statement program: ast.Program.
-// HasSemicolon is what tells eval.Compile that program is a sequence
-// (yielding 0 unless it returns) rather than a bare expression (yielding
-// its value), so dropping it -- as Minify used to -- rewrites the program's
-// meaning to buy one byte. Multi-statement programs need no trailing ';':
-// the separators between statements already set HasSemicolon on reparse.
+// program renders the top level, deciding the trailing ';' exactly as Format
+// does (see topLevel).
+//
+// No ';' is dropped to save a byte. The trailing one on a single-statement
+// program carries meaning (ast.Program.HasSemicolon), and the game refuses
+// any expression containing `=` or `;` that does not end with one -- Minify
+// used to write `t.a=1;t.b=2` and `{t.a=1}`, neither of which loads.
 func (m *minifier) program(p *ast.Program) string {
-	if len(p.Stmts) == 1 && !p.HasSemicolon {
+	switch topLevel(p) {
+	case shapeBare:
 		if es, ok := p.Stmts[0].(*ast.ExprStmt); ok {
 			return m.expr(es.X, precNone)
 		}
 		return m.stmt(p.Stmts[0])
+	case shapeReturn:
+		return "return " + m.expr(p.Stmts[0].(*ast.ExprStmt).X, precNone) + ";"
 	}
-	parts := make([]string, len(p.Stmts))
-	for i, s := range p.Stmts {
-		parts[i] = m.stmt(s)
+	var out strings.Builder
+	for _, s := range p.Stmts {
+		out.WriteString(m.stmt(s))
+		out.WriteByte(';')
 	}
-	out := strings.Join(parts, ";")
-	if len(p.Stmts) == 1 {
-		out += ";"
-	}
-	return out
+	return out.String()
 }
 
+// block renders a brace section. Every statement is followed by ';',
+// including the last: the game refuses a brace section with no ';' in it,
+// so `{t.a=1}` does not load where `{t.a=1;}` does.
 func (m *minifier) block(b *ast.Block) string {
-	parts := make([]string, len(b.Stmts))
-	for i, s := range b.Stmts {
-		parts[i] = m.stmt(s)
+	var out strings.Builder
+	out.WriteByte('{')
+	for _, s := range b.Stmts {
+		out.WriteString(m.stmt(s))
+		out.WriteByte(';')
 	}
-	return "{" + strings.Join(parts, ";") + "}"
+	out.WriteByte('}')
+	return out.String()
 }
 
 func (m *minifier) stmt(s ast.Stmt) string {
@@ -87,15 +93,18 @@ func (m *minifier) stmt(s ast.Stmt) string {
 		return "loop(" + m.expr(s.Count, precNone) + "," + m.block(s.Body) + ")"
 	case *ast.ForEachStmt:
 		return "for_each(" + namespaceName(s.Var.Namespace, true) + "." + s.Var.Member +
-			",array." + s.Array + "," + m.block(s.Body) + ")"
+			"," + m.expr(s.Source, precNone) + "," + m.block(s.Body) + ")"
 	case *ast.CondBlockStmt:
+		if isPlainElse(s) {
+			return m.block(s.Body)
+		}
 		return m.condBlock(s)
 	}
 	return "?"
 }
 
 func (m *minifier) condBlock(cb *ast.CondBlockStmt) string {
-	out := m.expr(cb.Cond, precNullish) + "?" + m.block(cb.Body)
+	out := m.expr(cb.Cond, precOr) + "?" + m.block(cb.Body)
 	if cb.Else != nil {
 		if isPlainElse(cb.Else) {
 			out += ":" + m.block(cb.Else.Body)
@@ -114,9 +123,12 @@ func (m *minifier) expr(e ast.Expr, parentPrec int) string {
 	return s
 }
 
-func (m *minifier) exprRHS(e ast.Expr, opPrec int) string {
+// exprRHS is the formatter's: the right operand of a left-associative
+// operator, parenthesized at equal precedence and, after a `-`, when it
+// starts with a `-` itself.
+func (m *minifier) exprRHS(e ast.Expr, opPrec int, afterMinus bool) string {
 	s, prec := m.exprPrec(e)
-	if prec <= opPrec {
+	if prec <= opPrec || keepsSign(s, afterMinus) {
 		return "(" + s + ")"
 	}
 	return s
@@ -125,7 +137,7 @@ func (m *minifier) exprRHS(e ast.Expr, opPrec int) string {
 func (m *minifier) exprPrec(e ast.Expr) (string, int) {
 	switch e := e.(type) {
 	case *ast.NumberLit:
-		return formatNumber(e.Value), precPrimary
+		return formatNumber(e.Value), numberPrec(e)
 	case *ast.BoolLit:
 		// Shorter than true/false and exactly equivalent.
 		if e.Value {
@@ -139,8 +151,7 @@ func (m *minifier) exprPrec(e ast.Expr) (string, int) {
 	case *ast.ThisExpr:
 		return "this", precPrimary
 	case *ast.ArrowExpr:
-		return namespaceName(e.Entity.Namespace, true) + "." + e.Entity.Member +
-			"->" + m.expr(e.Read, precPrimary), precPrimary
+		return m.expr(e.Entity, precPrimary) + "->" + m.expr(e.Read, precPrimary), precPrimary
 	case *ast.ArrayAccess:
 		return "array." + e.Name + "[" + m.expr(e.Index, 0) + "]", precPrimary
 	case *ast.CallExpr:
@@ -150,18 +161,18 @@ func (m *minifier) exprPrec(e ast.Expr) (string, int) {
 		if e.Op == ast.LNot {
 			sym = "!"
 		}
-		return sym + m.expr(e.X, precUnary), precUnary
+		return sym + m.exprRHS(e.X, precUnary-1, e.Op == ast.Neg), precUnary
 	case *ast.BinaryExpr:
 		prec := binaryPrec(e.Op)
 		left := m.expr(e.X, prec)
-		right := m.exprRHS(e.Y, prec)
+		right := m.exprRHS(e.Y, prec, e.Op == ast.Sub)
 		return left + binarySymbol(e.Op) + right, prec
 	case *ast.AssignExpr:
-		return namespaceName(e.Target.Namespace, true) + "." + e.Target.Member + "=" + m.expr(e.Value, precTernary), precNone
+		return namespaceName(e.Target.Namespace, true) + "." + e.Target.Member + "=" + m.expr(e.Value, precNullish), precNone
 	case *ast.TernaryExpr:
-		out := m.expr(e.Cond, precNullish) + "?" + m.expr(e.Then, precTernary)
+		out := m.expr(e.Cond, precOr) + "?" + m.thenArm(e)
 		if e.Else != nil {
-			out += ":" + m.expr(e.Else, precTernary)
+			out += ":" + m.elseArm(e.Else)
 		}
 		return out, precTernary
 	case *ast.CondBlockStmt:
@@ -170,10 +181,28 @@ func (m *minifier) exprPrec(e ast.Expr) (string, int) {
 	return "?", precPrimary
 }
 
+func (m *minifier) thenArm(t *ast.TernaryExpr) string {
+	if b, ok := plainArm(t.Then); ok {
+		return m.block(b)
+	}
+	if t.Else != nil && danglingElse(t.Then) {
+		return "(" + m.expr(t.Then, precNone) + ")"
+	}
+	return m.expr(t.Then, precTernary)
+}
+
+func (m *minifier) elseArm(e ast.Expr) string {
+	if b, ok := plainArm(e); ok {
+		return m.block(b)
+	}
+	return m.expr(e, precTernary)
+}
+
 func (m *minifier) call(c *ast.CallExpr) string {
 	args := make([]string, len(c.Args))
+	prec := argPrec(c)
 	for i, a := range c.Args {
-		args[i] = m.expr(a, precTernary)
+		args[i] = m.expr(a, prec)
 	}
 	return namespaceName(c.Callee.Namespace, true) + "." + c.Callee.Member + "(" + strings.Join(args, ",") + ")"
 }

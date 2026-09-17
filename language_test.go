@@ -20,6 +20,7 @@ package molang
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/stirante/molang-go/eval"
@@ -64,29 +65,118 @@ func TestNoModuloOperator(t *testing.T) {
 	}
 }
 
-// TestNullCoalesceIsNotNaNCoalescing pins the corrected reading of '??'.
+// TestNullCoalesceIsNotNaNCoalescing pins the reading of '??'.
 //
 // It used to be TestNaNCoalesce, and it used to assert
-// `math.sqrt(-1) ?? 5 == 5`. That premise is now known to be wrong: '??'
-// is a try/catch over an UNRESOLVED VARIABLE READ, not a value test of any
-// kind, so a NaN left-hand side passes straight through it. See
-// eval/unresolved.go for the mechanism.
-
-// TestNullCoalesceIsNotNaNCoalescing pins the corrected reading of '??'.
-//
-// It used to be TestNaNCoalesce, and it used to assert
-// `math.sqrt(-1) ?? 5 == 5`. That premise is now known to be wrong: '??'
-// is a try/catch over an UNRESOLVED VARIABLE READ, not a value test of any
-// kind, so a NaN left-hand side passes straight through it. See
+// `math.sqrt(-1) ?? 5 == 5`. That premise is wrong twice over: '??' is a
+// try/catch over an UNRESOLVED VARIABLE READ, not a value test of any kind,
+// so a NaN a variable holds passes straight through it; and the game does
+// not load `math.sqrt(-1) ?? 5` at all, because only a bare variable read
+// may stand on the left of `??` (see TestNullCoalesceLeftSide). See
 // eval/unresolved.go for the mechanism.
 func TestNullCoalesceIsNotNaNCoalescing(t *testing.T) {
-	got := evalOK(t, "math.sqrt(-1) ?? 5")
+	got := evalOK(t, "v.x = math.sqrt(-1); return v.x ?? 5;")
 	if !math.IsNaN(got) {
-		t.Errorf("math.sqrt(-1) ?? 5 = %v, want NaN (NaN is a value, not a missing read)", got)
+		t.Errorf("v.x = NaN; v.x ?? 5 = %v, want NaN (NaN is a value, not a missing read)", got)
 	}
-	if got := evalOK(t, "3 ?? 5"); got != 3 {
-		t.Errorf("3 ?? 5 = %v, want 3", got)
+	if got := evalOK(t, "v.x = 3; return v.x ?? 5;"); got != 3 {
+		t.Errorf("v.x = 3; v.x ?? 5 = %v, want 3", got)
 	}
+}
+
+// TestNullCoalesceLeftSide: the game accepts exactly one shape on the left
+// of `??` -- a bare context./variable./temp. read -- and refuses everything
+// else when the expression loads. The refusal is applied to the grouped
+// tree, so parentheses around the read change nothing, and the grouping
+// rules decide what ends up on the left: `??` groups to the left and is
+// grouped after the conditional, so a chain and a `??` inside a
+// conditional's arm both put something other than a read there.
+func TestNullCoalesceLeftSide(t *testing.T) {
+	const wantMsg = "left-hand-side of ?? expression that isn't a direct-variable reference"
+	rejected := []string{
+		"3 ?? 5",
+		"'s' ?? 5",
+		"true ?? 5",
+		"math.sqrt(-1) ?? 5",
+		"math.pi ?? 1",
+		"q.x ?? 1",
+		"query.x(1) ?? 1",
+		"array.a[0] ?? 1",
+		"geometry.g ?? 1",
+		"this ?? 1",
+		"-v.x ?? 1",
+		"!v.x ?? 1",
+		"v.x + 0 ?? 1",
+		"(v.x + 0) ?? 1",
+		"v.a.b ?? 1",
+		"variable.a.b ?? 1",
+		"c.o->v.x ?? 1",
+		"return (v.a = 1) ?? 2;",
+		"v.a ?? v.b ?? 1",
+		"v.a || v.b ?? 1",
+		"v.a ? v.b ?? 1 : 2",
+		"v.a ? 1 : v.b ?? 2",
+		"(v.a ? 1 : 2) ?? 3",
+	}
+	for _, src := range rejected {
+		_, err := Compile(src)
+		if err == nil {
+			t.Errorf("Compile(%q): accepted, want refusal", src)
+			continue
+		}
+		if !strings.Contains(err.Error(), wantMsg) {
+			t.Errorf("Compile(%q): error %q does not carry the game's wording", src, err)
+		}
+	}
+	accepted := []string{
+		"v.x ?? 1",
+		"variable.x ?? 1",
+		"t.x ?? 1",
+		"temp.x ?? 1",
+		"c.x ?? 1",
+		"context.x ?? 1",
+		"(v.x) ?? 1",
+		"((v.x)) ?? 1",
+		"v.a ?? (v.b ?? 1)",
+		"v.a ?? 1 + 2",
+		"v.a ?? 0 > 1",
+		"v.a ?? v.b || 1",
+		"v.a ?? 1 ? 2 : 3",
+		"(v.a ?? 1) ? 2 : 3",
+		"v.a ? (v.b ?? 1) : 2",
+		"v.a ? 1 : (v.b ?? 2)",
+		"!(v.a ?? 0)",
+		"v.x = v.y ?? 1;",
+		"math.max(v.a ?? 1, 2)",
+	}
+	for _, src := range accepted {
+		if _, err := Compile(src); err != nil {
+			t.Errorf("Compile(%q): %v, want acceptance", src, err)
+		}
+	}
+}
+
+// TestNullCoalescePrecedence: `??` is grouped after every other operator
+// except `=`, so everything to its right up to a `=` or a `,` is the
+// fallback. The first case is the one that tells the two readings apart:
+// with v.a resolved to 0, `v.a ?? 1 ? 2 : 3` is v.a itself, not
+// `0 ? 2 : 3`.
+func TestNullCoalescePrecedence(t *testing.T) {
+	evalCases(t, "coalesce precedence", map[string]float64{
+		"v.a = 0; return v.a ?? 1 ? 2 : 3;":  0,
+		"v.a ?? 1 ? 2 : 3":                   2,
+		"v.a ?? 0 ? 2 : 3":                   3,
+		"v.a = 5; return v.a ?? 0 > 1;":      5,
+		"v.a ?? 0 > 1":                       0,
+		"v.a ?? 2 > 1":                       1,
+		"v.a ?? 1 + 1":                       2,
+		"v.a ?? (v.b ?? 3)":                  3,
+		"v.b = 4; return v.a ?? (v.b ?? 3);": 4,
+		"v.x = v.y ?? 7; return v.x;":        7,
+		"math.max(v.a ?? 1, 2)":              2,
+		"(v.a ?? 1) ? 2 : 3":                 2,
+		"1 ? (v.a ?? 6) : 3":                 6,
+	})
 }
 
 // TestNullCoalesceCatchesUnresolvedRead is the behaviour the corpus needs:
@@ -233,7 +323,7 @@ func TestPrecedenceAndAssociativity(t *testing.T) {
 		"-2 + 3":   1,
 		"-(2 + 3)": -5,
 		"2 - -3":   5,
-		"--3":      3,
+		"-(-3)":    3,
 		"-2 * 3":   -6,
 	})
 
@@ -415,20 +505,28 @@ func TestReturnEndsTheProgram(t *testing.T) {
 	}
 }
 
-// Anything after a bare return, break or continue is unreachable, and the game
-// rejects the whole expression rather than dropping the dead code. Reproduced
-// here, because a tool that accepts what the game refuses sends an author away
-// believing a pack will load.
+// Anything after a bare return, break or continue IN THE SAME STATEMENT LIST
+// is unreachable, and the game refuses the expression rather than dropping
+// the dead code, naming the statement the way it names operations.
+// Reproduced here, because a tool that accepts what the game refuses sends an
+// author away believing a pack will load.
 func TestUnreachableStatementsAreRefused(t *testing.T) {
-	refused := []string{
-		"return 0; return 0;",
-		"return 1; v.x = 5;",
-		"v.x = 0; loop(3, {continue; v.x = v.x + 1;});",
-		"v.x = 0; loop(3, {break; v.x = v.x + 1;});",
+	refused := map[string]string{
+		"return 0; return 0;":                           "unreachable statements after Return 'return'.",
+		"return 1; v.x = 5;":                            "unreachable statements after Return 'return'.",
+		"v.x = 0; loop(3, {continue; v.x = v.x + 1;});": "unreachable statements after Continue 'continue'.",
+		"v.x = 0; loop(3, {break; v.x = v.x + 1;});":    "unreachable statements after Break 'break'.",
+		"loop(3, {v.i ? {break; v.i = 1;};});":          "unreachable statements after Break 'break'.",
+		"{return 1; v.x = 2;};":                         "unreachable statements after Return 'return'.",
 	}
-	for _, src := range refused {
-		if _, err := Compile(src); err == nil {
+	for src, want := range refused {
+		_, err := Compile(src)
+		if err == nil {
 			t.Errorf("%q compiled; statements after a terminating one are unreachable", src)
+			continue
+		}
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: error %q does not carry the game's wording %q", src, err, want)
 		}
 	}
 
@@ -456,8 +554,10 @@ func TestLoopRunsItsBodyTheGivenNumberOfTimes(t *testing.T) {
 		"temp.i = 0; loop(3, {temp.i = temp.i + 1;}); return temp.i;":  3,
 		"temp.i = 0; loop(0, {temp.i = temp.i + 1;}); return temp.i;":  0,
 		"temp.i = 0; loop(-1, {temp.i = temp.i + 1;}); return temp.i;": 0,
-		// A non-integer count truncates rather than rounding.
-		"temp.i = 0; loop(2.9, {temp.i = temp.i + 1;}); return temp.i;": 2,
+		// A non-integer count rounds up: the body runs while the counter
+		// is above zero, one taken off it per pass.
+		"temp.i = 0; loop(2.9, {temp.i = temp.i + 1;}); return temp.i;": 3,
+		"temp.i = 0; loop(0.5, {temp.i = temp.i + 1;}); return temp.i;": 1,
 		// The body sees and updates the outer scope.
 		"temp.n = 1; loop(4, {temp.n = temp.n * 2;}); return temp.n;": 16,
 	})
@@ -469,11 +569,13 @@ func TestLoopRunsItsBodyTheGivenNumberOfTimes(t *testing.T) {
 // eval/unresolved.go's tests. This is just the shape an author writes.
 func TestNullCoalesceBasics(t *testing.T) {
 	evalCases(t, "coalesce", map[string]float64{
-		"variable.nope ?? 7":                       7,
-		"variable.a = 5; return variable.a ?? 7;":  5,
-		"variable.a = 0; return variable.a ?? 7;":  0,
-		"temp.nope ?? 1 + 1":                       2,
-		"variable.nope ?? variable.also_nope ?? 3": 3,
+		"variable.nope ?? 7":                      7,
+		"variable.a = 5; return variable.a ?? 7;": 5,
+		"variable.a = 0; return variable.a ?? 7;": 0,
+		"temp.nope ?? 1 + 1":                      2,
+		// A chain groups to the left and is refused (see
+		// TestNullCoalesceLeftSide); the fallback has to be parenthesized.
+		"variable.nope ?? (variable.also_nope ?? 3)": 3,
 	})
 }
 
@@ -521,8 +623,8 @@ func TestStringLiteralsCarryNonASCIIText(t *testing.T) {
 }
 
 // An assignment is an EXPRESSION, and its value is the value assigned. So
-// `math.max(v.a = 5, 3)` is 5, `math.max(v.a = 2, 3)` is 3, and the write
-// happens either way.
+// `return v.a = 5;` is 5, `1 ? (v.a = 7) : 0` is 7, and the write happens
+// either way.
 //
 // **CONFIRMED** against the game (1.26.50.24). The engine compiles an
 // assignment into one of eight instructions, specialised by the shape of the
@@ -540,32 +642,291 @@ func TestStringLiteralsCarryNonASCIIText(t *testing.T) {
 // engine picks. (Whether a `;` then discards it is a separate question, and
 // a separate CONFIRMED behaviour -- see ast.Program.HasSemicolon.)
 //
-// Writing through `->` is refused at compile time rather than evaluated:
-// the engine content-logs an error and the expression fails to build. This
-// package refuses it at parse time, which is the same outcome earlier.
+// Where the value can be USED is narrower than where it exists: arithmetic
+// and math functions refuse an assignment as an operand (`(v.a = 5) + 1`,
+// `math.max(v.a = 5, 3)`), while a conditional's arm, a query's argument,
+// a return and another assignment's right side take it. See
+// TestNonNumericOperandsAreRefused.
+//
+// Writing through `->` is refused when the expression loads rather than
+// evaluated: the engine content-logs an error. This package refuses it at
+// parse time.
 func TestAssignmentIsAnExpressionYieldingTheAssignedValue(t *testing.T) {
 	evalCases(t, "assignment value", map[string]float64{
-		"v.a = 5":               5,
-		"t.a = 5":               5,
-		"math.max(v.a = 5, 3)":  5,
-		"math.max(v.a = 2, 3)":  3,
-		"(v.a = 5) + 1":         6,
-		"1 ? (v.a = 7) : 0":     7,
-		"math.abs(v.a = -4)":    4,
-		"(v.a = 2) * (t.b = 3)": 6,
+		// An expression containing `=` must end with `;`, and a `;` throws
+		// the value away, so the value is observed through return.
+		"return v.a = 5;":                      5,
+		"return t.a = 5;":                      5,
+		"return (v.a = 5);":                    5,
+		"return 1 ? (v.a = 7) : 0;":            7,
+		"return 0 ? 0 : (v.a = 7);":            7,
+		"return v.b = (v.a = 6);":              6,
+		"v.b = (v.a = 2) ? 8 : 9; return v.b;": 8,
 		// A `;` overwrites the sequence's value with 0, so the same
 		// assignment as a whole statement is 0 -- and still assigns.
 		"v.a = 5;": 0,
 	})
 
+	// Without the trailing `;` -- which only the OptionalSemicolons extension
+	// accepts -- the program is a bare expression and its value is the
+	// assignment's.
+	lenient, err := CompileWith("1 ? (v.a = 5) : 0", Extensions{OptionalSemicolons: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := lenient.Run(newCtx()); got != 5 {
+		t.Errorf("bare 1 ? (v.a = 5) : 0 = %v, want 5", got)
+	}
+
 	// The write must happen wherever the assignment sits.
 	ctx := newCtx()
-	prog, err := Compile("math.max(v.a = 5, 3)")
+	prog, err := Compile("q.f(v.a = 5, 3);")
 	if err != nil {
 		t.Fatal(err)
 	}
 	prog.Run(ctx)
 	if got, ok := ctx.Scope.Variable["a"]; !ok || got != 5 {
 		t.Errorf("variable.a = %v (present=%v), want 5", got, ok)
+	}
+}
+
+// Arithmetic, a comparison other than == and !=, a logical operator, a
+// negation and every math function take numbers only. A string, a resource
+// and an assignment are refused as their operand, with the game's wording,
+// naming both the operation and the operand. == and != take anything, which
+// is what lets a string or a resource be compared at all; so do a
+// conditional, `??`, a query's arguments, a return and an assignment's right
+// side, none of which look at what they are given.
+//
+// The game has applied this since Molang version 1.17.40 (a pack's
+// min_engine_version); every pack this package is likely to meet is past
+// that, and no older behaviour is offered.
+func TestNonNumericOperandsAreRefused(t *testing.T) {
+	refused := map[string]string{
+		"'a' + 1":                    "'Add '+'' expression cannot take a 'String '''' argument. It only supports numerical arguments.",
+		"1 + 'a'":                    "'Add '+'' expression cannot take a 'String '''' argument",
+		"'a' - 1":                    "'Add '+'' expression cannot take a 'String '''' argument",
+		"1 - 'a'":                    "'Negate '-'' expression cannot take a 'String '''' argument",
+		"'a' * 2":                    "'Multiply '*'' expression cannot take a 'String '''' argument",
+		"'a' / 2":                    "'Divide '/'' expression cannot take a 'String '''' argument",
+		"'a' < 1":                    "'Less Than '<'' expression cannot take a 'String '''' argument",
+		"'a' >= 1":                   "'Greater Than Or Equal '>='' expression cannot take a 'String '''' argument",
+		"'a' && 1":                   "'Logical And '&&'' expression cannot take a 'String '''' argument",
+		"'a' || 1":                   "'Logical Or '||'' expression cannot take a 'String '''' argument",
+		"-'a'":                       "'Negate '-'' expression cannot take a 'String '''' argument",
+		"!'a'":                       "'Logical Not '!'' expression cannot take a 'String '''' argument",
+		"math.abs('a')":              "'Absolute Value 'math.abs'' expression cannot take a 'String '''' argument",
+		"math.max(1, 'a')":           "'Max 'math.max'' expression cannot take a 'String '''' argument",
+		"texture.foo + 1":            "'Add '+'' expression cannot take a 'Texture Variable 'texture.'' argument",
+		"geometry.foo * 2":           "'Multiply '*'' expression cannot take a 'Geometry Variable 'geometry.'' argument",
+		"-material.foo":              "'Negate '-'' expression cannot take a 'Material Variable 'material.'' argument",
+		"math.floor(texture.foo)":    "'Floor 'math.floor'' expression cannot take a 'Texture Variable 'texture.'' argument",
+		"(v.a = 1) + 2;":             "'Add '+'' expression cannot take a 'Assignment '='' argument",
+		"math.max(v.a = 5, 3);":      "'Max 'math.max'' expression cannot take a 'Assignment '='' argument",
+		"math.abs(v.a = -4);":        "'Absolute Value 'math.abs'' expression cannot take a 'Assignment '='' argument",
+		"(v.a = 2) * (t.b = 3);":     "'Multiply '*'' expression cannot take a 'Assignment '='' argument",
+		"!(v.a = 1);":                "'Logical Not '!'' expression cannot take a 'Assignment '='' argument",
+		"(v.a = 1) < 2;":             "'Less Than '<'' expression cannot take a 'Assignment '='' argument",
+		"v.x = 1 + (v.a = 1);":       "'Add '+'' expression cannot take a 'Assignment '='' argument",
+		"loop(2, {v.n = 'a' + 1;});": "'Add '+'' expression cannot take a 'String '''' argument",
+	}
+	for src, want := range refused {
+		_, err := Compile(src)
+		if err == nil {
+			t.Errorf("%q compiled; the game refuses a non-numeric operand", src)
+			continue
+		}
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: error %q does not carry the game's wording %q", src, err, want)
+		}
+	}
+
+	accepted := []string{
+		"'a' == 'b'",
+		"'a' != v.s",
+		"texture.foo == texture.bar",
+		"1 ? 'a' : 'b'",
+		"v.s = 'a';",
+		"q.f('a', texture.foo)",
+		"return 'a';",
+		"v.a ?? 'a'",
+		"(v.a = 1) == 1;",
+		"(v.a = 1) != 1;",
+		"1 ? (v.a = 1) : 0;",
+		"q.f(v.a = 1);",
+		"v.b = (v.a = 1);",
+		"return v.a = 1;",
+		"v.b = (v.a = 1) ? 2 : 3;",
+		"(1 ? 'a' : 2) + 1",
+		"math.abs(1 ? 'a' : 2)",
+	}
+	for _, src := range accepted {
+		if _, err := Compile(src); err != nil {
+			t.Errorf("%q was refused: %v", src, err)
+		}
+	}
+}
+
+// What may stand on the left of `=`, and what the game says about the rest.
+func TestAssignmentLeftSides(t *testing.T) {
+	refused := map[string]string{
+		"c.x = 1;":                             "assignment to non-variable not allowed. Expression is trying to assign to a: Context Variable 'context.' or 'c.'",
+		"q.x = 1;":                             "assignment to non-variable not allowed. Expression is trying to assign to a: Query Function 'query.' or 'q.'",
+		"q.x(1) = 1;":                          "assignment to non-variable not allowed. Expression is trying to assign to a: Query Function 'query.' or 'q.'",
+		"1 = 2;":                               "assignment to non-variable not allowed. Expression is trying to assign to a: Float",
+		"'a' = 2;":                             "assignment to non-variable not allowed. Expression is trying to assign to a: String '''",
+		"this = 2;":                            "assignment to non-variable not allowed. Expression is trying to assign to a: This 'this'",
+		"math.pi = 2;":                         "assignment to non-variable not allowed. Expression is trying to assign to a: Pi",
+		"texture.a = 2;":                       "assignment to non-variable not allowed. Expression is trying to assign to a: Texture Variable 'texture.'",
+		"array.a[0] = 2;":                      "assignment to non-variable not allowed. Expression is trying to assign to a: Array '[]'",
+		"-v.x = 1;":                            "assignment to non-variable not allowed. Expression is trying to assign to a: Negate '-'",
+		"!v.x = 1;":                            "assignment to non-variable not allowed. Expression is trying to assign to a: Logical Not '!'",
+		"v.x + 1 = 2;":                         "assignment to non-variable not allowed. Expression is trying to assign to a: Add '+'",
+		"v.x - 1 = 2;":                         "assignment to non-variable not allowed. Expression is trying to assign to a: Add '+'",
+		"v.x * 2 = 2;":                         "assignment to non-variable not allowed. Expression is trying to assign to a: Multiply '*'",
+		"math.abs(v.x) = 1;":                   "assignment to non-variable not allowed. Expression is trying to assign to a: Absolute Value 'math.abs'",
+		"v.a ?? 1 = 2;":                        "assignment to non-variable not allowed. Expression is trying to assign to a: Null Coalescing '??'",
+		"(v.x + 1) = 0;":                       "assignment to non-variable not allowed. Expression is trying to assign to a: Left Parenthesis '('",
+		"(v.x) = 1;":                           "assignment to non-variable not allowed. Expression is trying to assign to a: Left Parenthesis '('",
+		"return (v.x) = 1;":                    "assignment to non-variable not allowed. Expression is trying to assign to a: Left Parenthesis '('",
+		"t.a.b = 1;":                           "left side of an assignment expression can only use temp variables if they are on their own and not part of a more complicated expression.",
+		"temp.a.b.c = 1;":                      "left side of an assignment expression can only use temp variables if they are on their own",
+		"c.a.b = 1;":                           "cannot use Context Variable 'context.' or 'c.' operators on the left side of an assignment expression",
+		"v.x->v.y = 1;":                        "Assignment attempted on Pointer result",
+		"for_each(v.a.b, q.list, {v.n = 1;});": "for_each requires three parameters",
+		"for_each(t.a.b, q.list, {v.n = 1;});": "for_each requires three parameters",
+		"for_each(c.e, q.list, {v.n = 1;});":   "for_each requires three parameters",
+	}
+	for src, want := range refused {
+		_, err := Compile(src)
+		if err == nil {
+			t.Errorf("%q compiled; nothing can be assigned to that", src)
+			continue
+		}
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: error %q does not carry the game's wording %q", src, err, want)
+		}
+	}
+
+	accepted := []string{
+		"v.x = 1;",
+		"variable.x = 1;",
+		"t.x = 1;",
+		"temp.x = 1;",
+		"v.a.b = 1;",
+		"v.a.b.c = 1;",
+		"v.x = t.a.b;",
+		"t.x = v.a.b;",
+		"for_each(t.e, q.list, {v.n = 1;});",
+		"for_each(v.e, q.list, {v.n = 1;});",
+	}
+	for _, src := range accepted {
+		if _, err := Compile(src); err != nil {
+			t.Errorf("%q was refused: %v", src, err)
+		}
+	}
+}
+
+// A break must be inside a loop() or for_each() -- anywhere inside: a nested
+// block, a conditional's arm, a block arm. Outside every loop it is refused
+// with the game's wording. A continue is not checked: one outside a loop
+// loads, and does nothing when reached.
+func TestBreakOutsideLoopIsRefused(t *testing.T) {
+	const want = "break encountered outside of loop"
+	refused := []string{
+		"break",
+		"break;",
+		"v.x = 1; break;",
+		"{break;};",
+		"v.x ? {break;};",
+		"v.x ? break;",
+		"v.x ? {v.y ? {break;};};",
+		"loop(2, {v.x = 1;}); break;",
+		"1 ? {break;} : 0;",
+	}
+	for _, src := range refused {
+		_, err := Compile(src)
+		if err == nil {
+			t.Errorf("%q compiled; a break outside a loop is refused", src)
+			continue
+		}
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("%q: error %q does not carry the game's wording", src, err)
+		}
+	}
+
+	accepted := []string{
+		"loop(2, {break;});",
+		"loop(2, {v.x ? break;});",
+		"loop(2, {v.x ? {break;};});",
+		"loop(2, {v.x ? {v.y ? {break;};};});",
+		"loop(2, {{break;};});",
+		"loop(2, {v.x ? 1 : {break;};});",
+		"loop(2, {loop(2, {break;}); break;});",
+		"for_each(t.e, q.list, {break;});",
+		"for_each(t.e, q.list, {t.e->v.hp ? break;});",
+		"continue",
+		"continue;",
+		"v.x = 1; continue;",
+		"v.x ? {continue;};",
+	}
+	for _, src := range accepted {
+		if _, err := Compile(src); err != nil {
+			t.Errorf("%q was refused: %v", src, err)
+		}
+	}
+
+	// At run time a continue outside a loop does nothing.
+	if got := evalOK(t, "v.x = 1; 1 ? {continue;}; v.x = 2; return v.x;"); got != 2 {
+		t.Errorf("continue outside a loop stopped the program: got %v, want 2", got)
+	}
+}
+
+// A block arm runs its statements and yields 0, unless a return inside it ends
+// the program. A value arm yields its value.
+func TestConditionalBlockArmsEvaluate(t *testing.T) {
+	evalCases(t, "block arms", map[string]float64{
+		// The value of a block arm is 0.
+		"v.r = 1 ? {v.a = 1;} : 5; return v.r;":       0,
+		"v.r = 0 ? {v.a = 1;} : 5; return v.r;":       5,
+		"v.r = 1 ? 5 : {v.a = 1;}; return v.r;":       5,
+		"v.r = 0 ? 5 : {v.a = 1;}; return v.r;":       0,
+		"v.r = (1 ? {v.a = 1;} : 5) + 2; return v.r;": 2,
+		// The statements in the chosen arm run, and only those.
+		"v.a = 0; 1 ? {v.a = 3;} : 5; return v.a;":         3,
+		"v.a = 0; 0 ? {v.a = 3;} : 5; return v.a;":         0,
+		"v.a = 0; 0 ? 5 : {v.a = 4;}; return v.a;":         4,
+		"v.a = 0; 1 ? (v.a = 6) : {v.a = 4;}; return v.a;": 6,
+		// A return inside a block arm ends the whole program.
+		"1 ? {return 9;} : 5; return 1;":       9,
+		"0 ? 5 : {return 8;}; return 1;":       8,
+		"v.r = 0 ? 5 : {return 7;}; return 1;": 7,
+		"0 ? {return 9;} : 5; return 1;":       1,
+		// Else-if chains mixing both shapes.
+		"v.a = 0; 0 ? {v.a = 1;} : 1 ? 2 : {v.a = 3;}; return v.a;": 0,
+		"v.a = 0; 0 ? {v.a = 1;} : 0 ? 2 : {v.a = 3;}; return v.a;": 3,
+	})
+
+	// break and continue inside a block arm reach the enclosing loop.
+	evalCases(t, "block arms in loops", map[string]float64{
+		"v.i = 0; loop(10, {v.i = v.i + 1; v.i == 3 ? {break;} : 0;}); return v.i;":                           3,
+		"v.i = 0; loop(10, {v.i = v.i + 1; v.i < 3 ? 0 : {break;};}); return v.i;":                            3,
+		"v.i = 0; v.n = 0; loop(5, {v.i = v.i + 1; v.i == 2 ? {continue;} : 0; v.n = v.n + 1;}); return v.n;": 4,
+	})
+
+	// Without a trailing `;` -- only under OptionalSemicolons -- the program is
+	// a bare expression, and its value is the arm's.
+	for src, want := range map[string]float64{
+		"0 ? {v.a = 1;} : 5": 5,
+		"1 ? {v.a = 1;} : 5": 0,
+		"1 ? 5 : {v.a = 1;}": 5,
+	} {
+		prog, err := CompileWith(src, Extensions{OptionalSemicolons: true})
+		if err != nil {
+			t.Fatalf("%q: %v", src, err)
+		}
+		if got := prog.Run(newCtx()); got != want {
+			t.Errorf("%q = %v, want %v", src, got, want)
+		}
 	}
 }

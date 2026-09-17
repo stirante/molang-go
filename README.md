@@ -37,7 +37,8 @@ core ships no worldgen-specific query functions, by design (see
 
 ## What's implemented
 
-**The whole language.** Arithmetic and comparison, both conditional forms,
+**The whole language.** Arithmetic and comparison, both conditional forms
+(with a `{ ... }` block on either side, both, or the only one),
 `loop` with `break`/`continue`, `for_each`, statement sequences and `return`,
 `??`, string literals, `array.<name>[index]`, the `geometry.`/`material.`/
 `texture.` resource namespaces, `->` for reading another entity, and `this`.
@@ -48,9 +49,26 @@ clamped, the `expo` curves have no endpoint special cases, and `sine`/
 `elastic` read a 65536-entry quantised sine table rather than calling `sinf`
 (`math.sin`/`math.cos` themselves do call it).
 
-Where the language refuses something — arithmetic on a resource or an array
-element, statements after a `return`, a chained `->` — this refuses it too. A
-tool that accepts what the game rejects is worse than one that does less.
+Where the language refuses something — arithmetic on a string, a resource or
+an assignment, a constant folded onto an array element, statements after a
+`return`, a `break` outside a loop, a chained `->`, anything but a bare
+variable on the left of `??` or of `=`, a missing `;`, a tree nested 256
+levels deep — this refuses it too, in the game's own words (see "Sharp
+edges"). A tool that accepts what the
+game rejects is worse than one that does less. The one relaxation on offer,
+`Extensions{OptionalSemicolons: true}`, is for fragments and REPL lines, and
+has to be asked for.
+
+One distinction the game makes and this package does not: the game reports
+every one of these as an Error in its content log, but only some of them
+stop the expression loading. Those checked while its optimizer runs — the
+operand rules, the `;` rules, the shape of `loop`/`for_each`, what a
+statement assigns to — refuse the expression wherever they fire; those
+checked afterwards — an unreachable statement, a stray `break`, a chained
+`->` or `??`, a write through `->`, a temp member on the left of `=` — refuse
+it only when the offending node is the whole expression, and otherwise log
+the Error and let it load. An Error in the content log is what an author is
+trying to avoid, so this package refuses all of them.
 
 On top of the language: `Format`/`Minify` printing with precedence-correct
 parenthesization, constant folding, macro expansion via a public `Registry`
@@ -62,8 +80,8 @@ Three things come from the host rather than being built in:
 
 | | |
 | --- | --- |
-| `for_each`'s source | `array.<name>` only. Molang also allows an entity array; there are no entities here. What it does walk, it walks identically. |
-| `->`'s target | `eval.Entity` — published variables and query functions. A host with richer objects hands over a view of them. |
+| `for_each`'s source | Any expression parses, as in the game, which iterates entity arrays. An entity array is what a host query returns with `Context.EntityArrayRef`; each pass hands the loop variable a reference to the next entity, ready for `t.e->q.health`. A bare `array.<name>` is walked numerically — **an extension of this package**, not something the game does — and any other value is evaluated and walked zero times. |
+| `->`'s target | `eval.Entity` — published variables and query functions. A host with richer objects hands over a view of them. An expression reaches one through a `context.` name bound in `Context.Entities`, a for_each loop variable, or a query returning `Context.EntityRef`, and can keep it in a variable and compare it. The right side is evaluated as the other entity: its variables and queries, the expression's own temps. A left side that is not an entity reads 0 and skips the right side. Where the game refuses a shape — anything but a variable or query read on the right, a chain, a write through the arrow, an arrow on the left of `??` — this refuses it with the game's wording. |
 | `this` | `eval.Context.This`, a number the host sets, because what it means belongs to the host. |
 
 **Deliberately left out**, each a choice rather than a gap:
@@ -108,7 +126,7 @@ Three things come from the host rather than being built in:
   used with an allow-list belonging to the field it was written in. `ast.Op`,
   `ast.OpsUsed` and `CheckOps` model that, and `DisallowSideEffects` is the
   engine's own preset. It matters because parsing here is necessary but not
-  sufficient: `math.max(v.a = 5, 3)` parses everywhere and loads only where
+  sufficient: `q.foo(v.a = 5);` parses everywhere and loads only where
   assignment is allowed.
 
 ## Sharp edges
@@ -117,11 +135,50 @@ Molang surprises people in specific places, and this reproduces them rather
 than smoothing them over. Each is documented at the code that implements it,
 and the tests are the fastest way to see one.
 
+- **Operators group in passes, and `/` before `*`.** The game has no
+  precedence table. It groups a token list in a fixed sequence of passes,
+  one operator (or set of operators) per pass, each pass scanning left to
+  right and folding every operator it owns with its two neighbours — so the
+  operators of one pass are left-associative among themselves, and an
+  earlier pass binds tighter than a later one. In order:
+
+  | pass | operators | note |
+  | --- | --- | --- |
+  | 1 | `->` | before everything, unary `-` and `!` included |
+  | 2 | unary `-`, `!` | a binary `-` is rewritten to `+` with its right operand negated |
+  | 3 | `/` | |
+  | 4 | `*` | so `a * b / c` is `a * (b / c)` and `2 * 3 / 4 * 5` is `(2 * (3 / 4)) * 5` |
+  | 5 | `+` (and so `-`) | `a - b - c` is `(a - b) - c` as usual |
+  | 6 | `<` `<=` `>` `>=` | one pass: `a < b > c` is `(a < b) > c` |
+  | 7 | `==` `!=` | one pass |
+  | 8 | `&&` | |
+  | 9 | `\|\|` | |
+  | 10 | `? :` | |
+  | 11 | `??` | |
+  | 12 | `,` | |
+  | 13 | `=` | one pass, left to right: `v.a = v.b = 1` assigns to an assignment and does not load; write `v.a = (v.b = 1)` |
+  | 14 | `return` | |
+
+  Everything but the `/`-before-`*` split reads as C would, and that split
+  changes float32 results: `7 * 3 / 9` is `2.3333335`, not `2.3333333`.
+  The parser builds this grouping, so evaluation, printing, folding and the
+  depth count all see the same tree, and the printers parenthesize a
+  product on the left of a `/` (`(a * b) / c`) rather than a quotient on
+  the right of a `*`. The sign pass has one more rule: two `-` in a row are
+  a `+`, so `a - -b` is `a + b` — and `--b` alone, or after an operator,
+  leaves a `+` with nothing on its left and does not load; `-(-b)` does.
 - **Numbers only; booleans are 1/0.** No `%` operator — `math.mod` instead.
   `&&`/`||` normalize to 1/0 and short-circuit.
 - **`??` is a try/catch over an unresolved read**, not NaN- or
-  null-coalescing. `v.unset ?? 5` is 5; `v.x = 0; v.x ?? 5` is 0;
-  `math.sqrt(-1) ?? 5` is NaN.
+  null-coalescing, and only a bare `variable.`/`temp.`/`context.` read may
+  stand on its left. `v.unset ?? 5` is 5; `v.x = 0; return v.x ?? 5;` is 0;
+  `v.x = math.sqrt(-1); return v.x ?? 5;` is NaN. `3 ?? 5`, `q.x ?? 5`,
+  `-v.x ?? 5`, `v.a.b ?? 5` and `v.a ?? v.b ?? 5` all refuse to load — the
+  last because `??` groups to the left, which puts a `??` on the left of a
+  `??`; write `v.a ?? (v.b ?? 5)`. It binds looser than the conditional and
+  tighter than `=`: `v.a ?? 1 ? 2 : 3` is `v.a ?? (1 ? 2 : 3)`, `v.x = v.y
+  ?? 1` assigns the fallback, and a `??` inside a conditional's arm or
+  condition needs parentheses.
 - **Falsiness is exactly zero.** `?`, `!`, `&&` and `||` all treat NaN as
   truthy, so `math.sqrt(-1) ? 111 : 222` is 111.
 - **A trailing `;` throws the value away.** `1+1;` is 0 and `1+1` is 2;
@@ -129,8 +186,42 @@ and the tests are the fastest way to see one.
   as one bare expression, which is how most real single-field strings are
   written. `ast.Program.HasSemicolon` carries the distinction and the
   printers preserve it.
+- **Where `;` is required, it is required.** An expression containing `=` or
+  `;` anywhere must end with `;` — `v.a = 1` alone does not load, and neither
+  does `{v.a = 1;}` or `q.x ? {v.a = 1;}` without a final `;`. A brace section
+  must contain a `;` even around a single statement: `{v.a = 1}` does not
+  load. Both are parse errors here, worded as the game words them, and
+  `Format`/`Minify` always write the `;`.
 - **An assignment is an expression** yielding the assigned value, so
-  `math.max(v.a = 5, 3)` is 5.
+  `return v.a = 5;` is 5 and `1 ? (v.a = 7) : 0` is 7 — but see the next
+  point for where that value may be used.
+- **Arithmetic wants numbers.** `+`, `-`, `*`, `/`, `<`, `<=`, `>`, `>=`,
+  `&&`, `||`, `!`, unary `-` and every `math.*` function refuse an operand
+  that is a string, a `geometry.`/`material.`/`texture.` resource, or an
+  assignment: `'a' + 1`, `texture.x * 2`, `math.abs('a')`,
+  `(v.a = 1) + 2` and `math.max(v.a = 5, 3)` do not load. `==` and `!=`
+  take anything, which is what lets `'a' == v.s` and `texture.a ==
+  texture.b` work; so do a conditional, `??`, a query's arguments, `return`
+  and the right side of `=`. The game has applied this since pack
+  `min_engine_version` 1.17.40; this package has no version switch and
+  applies it always.
+- **An array element refuses a constant folded onto it, and only that.**
+  The game folds a constant added to, subtracted from or multiplied into an
+  operand onto that operand, and a negation likewise, then refuses an array
+  element carrying such a fold: `array.a[i] + 1`, `array.a[i] * 2`,
+  `1 - array.a[i]` and `-array.a[i]` do not load. Anything that folds
+  nothing does: `array.a[i] + v.x`, `array.a[i] - v.x`, `array.a[i] / 2`,
+  `array.a[i] == 1`, `array.a[i] < 1`, `math.floor(array.a[i])`. (Division
+  is never folded this way, even by a constant.)
+- **What `=` may write to.** A `variable.` name, with or without members
+  (`v.a = 1`, `v.a.b = 1`), and a `temp.` name only on its own (`t.a = 1`
+  loads, `t.a.b = 1` does not). A `context.` name, a query, a resource, an
+  array element, `this`, a number, an operator result, a parenthesised
+  name (`(v.x) = 1`) and a read through `->` are all refused, each named
+  as the game names it.
+- **`break` must be inside a `loop` or `for_each`** — anywhere inside: a
+  nested block, a conditional's arm. Outside every loop it does not load.
+  `continue` is not checked; outside a loop it loads and does nothing.
 - **Member names may contain dots.** `variable.st.height` is one opaque key,
   not a nested-property access — Molang splits only on the first dot.
 - **Calling a non-function member is not an error.** `query.<name>(...)` with
@@ -147,6 +238,26 @@ and the tests are the fastest way to see one.
   binary — the safer way round for a tool that previews expressions out of
   third-party packs, where a `loop(v.big, …)` typo hanging it is worse than a
   wrong number. Raise `eval.LoopCounterMax` to match the game instead.
+  Below the cap the count behaves as the game's does: it is tested for being
+  above zero and then counted down by one per pass, so a fractional count
+  rounds **up** (`loop(2.5, …)` runs three times, `loop(0.5, …)` once) and
+  zero, a negative or NaN runs nothing.
+- **An expression may nest 256 levels deep, and no deeper.** That is the
+  game's one size limit: not length, not token or statement count, not a
+  call's argument count — nesting. It builds a tree from the source and
+  refuses the whole expression, with `Expression could not be parsed due to
+  stack depth overflow (too many sub-expressions)` in the content log, when
+  a node sits 256 levels below the first. Its tree is coarser than this
+  package's, and `ast.Depth` measures the game's rather than ours:
+  parentheses are levels (`((x))` puts x two down), a block's braces and its
+  `;` list are two, a one-argument `math.` call keeps its parenthesis as a
+  level while a query or a two- or three-argument function does not, `-` is
+  `+` of a negation, `/` groups before `*`, and every operator run groups to
+  the left. `parser.Depth` reports the number for a source; `Parse` and
+  `eval.Compile` refuse at the limit in the game's words, and the parser
+  stops as soon as the source nests that far, so an adversarial input costs
+  nothing to refuse. The printers write parentheses only where the grammar
+  needs them, which the game counts too, so printing never deepens a tree.
 
 ## Differential validation
 
@@ -322,7 +433,7 @@ go install github.com/stirante/molang-go/cmd/molang@latest
 $ molang eval -scope v.x=10 'v.x * 2 + 1'
 21
 $ molang minify 'temp.a = 1 + 2 * 3; return temp.a;'
-t.a=1+2*3;return t.a
+t.a=1+2*3;return t.a;
 ```
 
 **Stages chain by being named together, and a chain costs one parse** — the

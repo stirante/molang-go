@@ -68,7 +68,10 @@ var foldGrid = []float64{
 	0.1,
 }
 
-var foldBinaryOps = []string{"+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!=", "&&", "||", "??"}
+// `??` is absent on purpose: its left operand must be a variable read, so
+// `<literal> ?? <literal>` does not parse and there is no constant fold for
+// it to agree with. TestFoldLeavesCoalesceLeftSide covers the operator.
+var foldBinaryOps = []string{"+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!=", "&&", "||"}
 
 func lit(v float64) string { return "(" + strconv.FormatFloat(v, 'g', -1, 64) + ")" }
 

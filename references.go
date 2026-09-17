@@ -45,8 +45,10 @@ type Refs struct {
 	// Arrays is every array.<name> indexed or walked by for_each.
 	Arrays []string
 
-	// Entities is every context.<name> used on the left of `->`. Such a name
-	// is NOT in ContextReads: it is being dereferenced, not read.
+	// Entities is every context.<name> used directly on the left of `->`.
+	// Such a name is NOT in ContextReads: it is being dereferenced, not
+	// read. Any other left side (a variable holding an entity, a for_each
+	// loop variable) is recorded as the read it is.
 	Entities []string
 
 	// Resources is every geometry./material./texture. name, with its
@@ -191,8 +193,13 @@ func (c *refCollector) stmt(s ast.Stmt) {
 		c.expr(s.Count)
 		c.block(s.Body)
 	case *ast.ForEachStmt:
-		// The loop variable is WRITTEN on every pass, and the array is read.
-		c.mark("a", s.Array)
+		// The loop variable is WRITTEN on every pass, and the source is read:
+		// a host array by name, or whatever expression stands there.
+		if name, ok := s.ArrayName(); ok {
+			c.mark("a", name)
+		} else {
+			c.expr(s.Source)
+		}
 		switch s.Var.Namespace {
 		case ast.Variable:
 			c.mark("vw", s.Var.Member)
@@ -262,9 +269,16 @@ func (c *refCollector) expr(e ast.Expr) {
 		c.mark("a", e.Name)
 		c.expr(e.Index)
 	case *ast.ArrowExpr:
-		// The left side names an ENTITY being dereferenced, which is not the
-		// same as reading a context member, so it goes in its own list.
-		c.mark("e", e.Entity.Member)
+		// A context. name on the left names an ENTITY being dereferenced,
+		// which is not the same as reading a context member, so it goes in
+		// its own list. Any other left side -- a variable holding an entity,
+		// a for_each loop variable, a query -- is an ordinary expression
+		// and is recorded as whatever it reads.
+		if name, ok := e.EntityContextName(); ok {
+			c.mark("e", name)
+		} else {
+			c.expr(e.Entity)
+		}
 		c.expr(e.Read)
 	case *ast.CondBlockStmt:
 		c.condBlock(e)

@@ -44,11 +44,14 @@ type stage struct {
 // so that `molang eval -seed 7` and `molang pipe fold,eval -seed 7` accept
 // the same words.
 type options struct {
-	comments   bool
-	scope      scopeFlag
-	seed       uint
-	continueOn bool
-	verbose    bool
+	comments bool
+	// optionalSemicolons lifts the game's semicolon rules, so `v.x = 1`
+	// parses without its trailing ';'.
+	optionalSemicolons bool
+	scope              scopeFlag
+	seed               uint
+	continueOn         bool
+	verbose            bool
 
 	noSideEffects bool
 	noRandom      bool
@@ -62,6 +65,8 @@ type options struct {
 // stays an error rather than silently accepting a meaningless number.
 func (o *options) register(fs *flag.FlagSet, names []string) {
 	fs.BoolVar(&o.comments, "comments", false, "accept `#` comments (an extension, not vanilla Molang)")
+	fs.BoolVar(&o.optionalSemicolons, "optional-semicolons", false,
+		"accept `v.x = 1` and `{v.x = 1}` without the ';' the game requires")
 
 	has := func(want ...string) bool {
 		for _, n := range names {
@@ -189,7 +194,7 @@ func runChain(names []string, src string, opts *options, out io.Writer) error {
 		names[i] = n
 	}
 
-	tree, err := parser.ParseWith(src, extensions(opts.comments))
+	tree, err := parser.ParseWith(src, extensions(opts))
 	if err != nil {
 		return err
 	}

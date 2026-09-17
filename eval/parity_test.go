@@ -328,9 +328,11 @@ func TestUnknownQueryDoesNotAbort(t *testing.T) {
 // panic with an unexported sentinel type, recovered in exactly two places.
 // Both re-panic anything else, so a genuine bug inside a host QueryFunc
 // reaches the host with its original value rather than being silently
-// converted into "the left side was unresolved".
+// converted into "the read was unresolved". The program-level recover is
+// the one a host can actually hit: the `??` frame only ever wraps a bare
+// variable read, so no host code runs inside it.
 func TestNonSentinelPanicStillEscapes(t *testing.T) {
-	p, err := compile(t, "(query.boom(1) ?? 1) + v.alsoMissing")
+	p, err := compile(t, "query.boom(1) + v.alsoMissing")
 	if err != nil {
 		t.Fatal(err)
 	}
