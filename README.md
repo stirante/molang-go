@@ -76,6 +76,12 @@ parenthesization, constant folding, macro expansion via a public `Registry`
 program names without running it, and a per-context operation allow-list
 (see "What sets it apart").
 
+For editors, `parser.ParseAll` reports every error in a source rather than
+stopping at the first: a statement that fails is recorded and skipped to its
+`;`, and parsing carries on. Its first error is always exactly the one `Parse`
+reports, which the tests check against every string in the test suite and
+thousands of one-token mutations of them.
+
 Three things come from the host rather than being built in:
 
 | | |

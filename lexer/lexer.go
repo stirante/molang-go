@@ -143,6 +143,59 @@ func TokenizeWith(src string, ext Extensions) ([]token.Token, error) {
 	return toks, nil
 }
 
+// TokenizeAll lexes src the way TokenizeWith does, but does not stop at the
+// first error. Tooling that shows every problem in a document at once needs
+// the tokens that follow a bad character as much as the ones before it, so
+// each error is recorded and lexing carries on:
+//
+//   - a character the language has no use for becomes a token.Illegal token
+//     holding just that character, so a parser can tell something stood
+//     there rather than seeing its neighbours run together;
+//   - an unterminated string becomes a String token running to the end of
+//     the source, which is what the author is in the middle of typing.
+//
+// The errors are the ones TokenizeWith would report, in source order, so the
+// first of them is exactly TokenizeWith's error. With no errors the tokens
+// are exactly TokenizeWith's tokens.
+func TokenizeAll(src string, ext Extensions) ([]token.Token, []*Error) {
+	l := NewWith(src, ext)
+	toks := make([]token.Token, 0, len(src)/tokensPerByte+8)
+	var errs []*Error
+	for {
+		tok, err := l.next()
+		if err != nil {
+			le := err.(*Error)
+			errs = append(errs, le)
+			tok = l.recoverFrom(le.Pos)
+		}
+		toks = append(toks, tok)
+		if tok.Kind == token.EOF {
+			break
+		}
+	}
+	return toks, errs
+}
+
+// recoverFrom builds the token TokenizeAll substitutes for one that failed to
+// lex at pos, and moves past it.
+func (l *Lexer) recoverFrom(pos int) token.Token {
+	if l.src[pos] == '\'' {
+		// Unterminated: everything to the end is the string being typed.
+		l.pos = len(l.src)
+		return token.Token{Kind: token.String, Text: l.src[pos+1:], Pos: pos}
+	}
+	if isDigit(l.src[pos]) || l.src[pos] == '.' {
+		// A number strconv refused, which only an out-of-range exponent can
+		// be. The lexer already consumed it; keep it as the number it is.
+		text := strings.TrimRight(l.src[pos:l.pos], "fF")
+		f, _ := strconv.ParseFloat(text, 64)
+		return token.Token{Kind: token.Number, Text: text, Pos: pos, Num: f}
+	}
+	_, size := utf8.DecodeRuneInString(l.src[pos:])
+	l.pos = pos + size
+	return token.Token{Kind: token.Illegal, Text: l.src[pos:l.pos], Pos: pos}
+}
+
 func (l *Lexer) skipSpaceAndComments() {
 	for {
 		c := l.peek()

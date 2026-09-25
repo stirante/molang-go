@@ -51,6 +51,24 @@ type parser struct {
 	// the exact count, which also sees operator chains and statement
 	// lists, is made once the tree is built.
 	nest int
+
+	// collect is set by ParseAll: a statement that fails to parse is
+	// recorded in errs and skipped, rather than ending the parse. See
+	// parseStatementRecovering.
+	collect bool
+	errs    []*Error
+	lexErrs []int // offsets of the errors the lexer reported, for ParseAll
+}
+
+// record keeps err for ParseAll. Two errors at the same offset are one
+// problem seen twice -- typically a construct left open at the end of the
+// source, which the statement and then the block around it both trip over --
+// so only the first is kept.
+func (p *parser) record(err *Error) {
+	if n := len(p.errs); n > 0 && p.errs[n-1].Pos == err.Pos {
+		return
+	}
+	p.errs = append(p.errs, err)
 }
 
 // enter records entering a construct that nests what follows one level
@@ -126,6 +144,63 @@ func Depth(source string) (int, error) {
 	return ast.Depth(prog, g), nil
 }
 
+// ParseAll parses source like ParseWith, but reports every problem it can
+// find rather than only the first. It is for editors and linters, where an
+// author fixing one error at a time, re-running after each, is the cost the
+// single-error form imposes.
+//
+// Its promises, which the tests hold it to:
+//
+//   - The first error is exactly the error ParseWith returns for the same
+//     source, message and offset both. Everything after it is best effort.
+//   - With no errors, the program is exactly ParseWith's program.
+//   - With any error the program is nil. A partial tree would be a tree the
+//     game never builds, and every consumer of one would have to know that.
+//
+// Recovery is by statement. A statement that fails to parse is recorded and
+// skipped up to the `;` that ends it, or the `}` or end of source that ends
+// the list it is in, and parsing resumes after it -- innermost list first, so
+// a mistake inside a block costs only that statement of the block. A
+// character the lexer cannot read, or a string left open, is reported once,
+// by the lexer; the statement it stands in is then skipped without a second
+// report, since whatever the parser would say about it follows from the
+// first.
+//
+// The game's two semicolon rules are applied to the whole token stream as
+// well, even when a statement failed, because they are about tokens and not
+// grammar: a missing final `;` is missing whatever else is wrong. They are
+// skipped when the lexer failed, and the brace rule when the braces do not
+// balance, since neither then has anything sound to say. The nesting-depth
+// limit needs a whole tree and is only checked when there is one.
+func ParseAll(source string, ext Extensions) (*ast.Program, []*Error) {
+	if strings.TrimSpace(source) == "" {
+		return nil, []*Error{{Msg: "empty expression", Source: source, Pos: 0}}
+	}
+	toks, lexErrs := lexer.TokenizeAll(source, ext)
+	p := &parser{toks: toks, source: source, parens: map[ast.Expr]int{}, plain: map[*ast.CondBlockStmt]bool{}, collect: true}
+	for _, le := range lexErrs {
+		p.errs = append(p.errs, &Error{Msg: le.Msg, Source: source, Pos: le.Pos})
+		p.lexErrs = append(p.lexErrs, le.Pos)
+	}
+	stmts, hasSemi := p.parseStatementList(token.EOF)
+	// A token stream the lexer had to patch up says nothing reliable about
+	// where the author's semicolons are: an unterminated string has eaten
+	// the last one.
+	if !ext.OptionalSemicolons && len(lexErrs) == 0 {
+		for _, e := range semicolonErrors(toks, source, true) {
+			p.record(e)
+		}
+	}
+	if len(p.errs) > 0 {
+		return nil, p.errs
+	}
+	prog := &ast.Program{Stmts: stmts, HasSemicolon: hasSemi}
+	if ast.Depth(prog, &ast.Grouping{Parens: p.parens, PlainBlocks: p.plain}) >= ast.DepthLimit {
+		return nil, []*Error{{Msg: ast.DepthOverflowMessage, Source: source, Pos: 0}}
+	}
+	return prog, nil
+}
+
 // parse is ParseWith, also returning what the parser wrote down about the
 // source's grouping.
 func parse(source string, ext Extensions) (prog *ast.Program, g *ast.Grouping, err error) {
@@ -193,11 +268,25 @@ func parse(source string, ext Extensions) (prog *ast.Program, g *ast.Grouping, e
 // The messages keep the game's wording, so an error from here and one from
 // the game's content log can be matched up.
 func checkSemicolons(toks []token.Token, source string) *Error {
+	if errs := semicolonErrors(toks, source, false); len(errs) > 0 {
+		return errs[0]
+	}
+	return nil
+}
+
+// semicolonErrors is checkSemicolons reporting every violation, in source
+// order, when all is set, and stopping at the first otherwise. The token
+// stream may come from a source that failed to parse: a `}` with nothing open
+// is skipped, and when the braces do not balance the brace rule is not
+// reported at all, since which `{` a `}` closes is then a guess.
+func semicolonErrors(toks []token.Token, source string, all bool) []*Error {
 	type brace struct {
 		pos  int
 		semi bool
 	}
 	var open []brace
+	var braceErrs, errs []*Error
+	balanced := true
 	complex := false
 	last := token.EOF
 	for _, t := range toks {
@@ -216,26 +305,39 @@ func checkSemicolons(toks []token.Token, source string) *Error {
 		case token.LBrace:
 			open = append(open, brace{pos: t.Pos})
 		case token.RBrace:
-			// The grammar has already balanced the braces, so open is never
-			// empty here.
+			// After a successful parse the grammar has balanced the braces;
+			// ParseAll also calls this for sources that did not parse.
+			if len(open) == 0 {
+				balanced = false
+				continue
+			}
 			b := open[len(open)-1]
 			open = open[:len(open)-1]
 			if !b.semi {
-				return &Error{
+				err := &Error{
 					Msg: "Brace sections must only contain semicolon-delimited expressions, " +
 						"even if only one expression is contained.",
 					Source: source, Pos: b.pos,
 				}
+				if !all {
+					return []*Error{err}
+				}
+				braceErrs = append(braceErrs, err)
 			}
 		}
 	}
+	if balanced && len(open) == 0 {
+		// In the order the braces close, inner before outer, which is the
+		// order the single-error form finds them in.
+		errs = append(errs, braceErrs...)
+	}
 	if complex && last != token.Semi {
-		return &Error{
+		errs = append(errs, &Error{
 			Msg:    "complex expressions (contains either '=' or ';') must end with a ';'",
 			Source: source, Pos: len(source),
-		}
+		})
 	}
-	return nil
+	return errs
 }
 
 // ---------------------------------------------------------------------
@@ -253,6 +355,31 @@ func (p *parser) parseStatementList(term token.Kind) ([]ast.Stmt, bool) {
 	deadAfter, deadName, deadPos := -1, "", 0
 
 	for {
+		if p.collect {
+			if p.cur().Kind == term {
+				break
+			}
+			if !p.parseStatementRecovering(term, func() {
+				stmt, stmtPos := p.parseListItem(term, sawStmt, &hasSemi)
+				if stmt == nil {
+					return
+				}
+				if name := terminatingStmtName(stmt); name != "" && deadAfter < 0 {
+					deadAfter, deadName, deadPos = len(stmts), name, stmtPos
+				}
+				stmts = append(stmts, stmt)
+				sawStmt = true
+			}) {
+				sawStmt = true
+				// A block left open at the end of the source: the statement
+				// has recorded what went wrong, and the block's own '}' check
+				// is left to say the rest.
+				if p.cur().Kind == token.EOF && term != token.EOF {
+					break
+				}
+			}
+			continue
+		}
 		if p.cur().Kind == token.Semi {
 			if !sawStmt {
 				p.errorf(p.cur().Pos, "unexpected leading ';'")
@@ -285,9 +412,131 @@ func (p *parser) parseStatementList(term token.Kind) ([]ast.Stmt, bool) {
 		}
 	}
 	if deadAfter >= 0 && deadAfter != len(stmts)-1 {
-		p.errorf(deadPos, "unreachable statements after %s.", deadName)
+		if p.collect {
+			p.record(&Error{Msg: fmt.Sprintf("unreachable statements after %s.", deadName), Source: p.source, Pos: deadPos})
+		} else {
+			p.errorf(deadPos, "unreachable statements after %s.", deadName)
+		}
 	}
 	return stmts, hasSemi
+}
+
+// parseListItem is one pass of parseStatementList's loop for ParseAll: a
+// `;`, which returns a nil statement, or a statement and the separator check
+// that follows it. The checks and their wording are the loop's own, repeated
+// here so the single-error loop above stays as it was.
+func (p *parser) parseListItem(term token.Kind, sawStmt bool, hasSemi *bool) (ast.Stmt, int) {
+	if p.cur().Kind == token.Semi {
+		if !sawStmt {
+			p.errorf(p.cur().Pos, "unexpected leading ';'")
+		}
+		*hasSemi = true
+		p.advance()
+		return nil, 0
+	}
+	stmtPos := p.cur().Pos
+	stmt := p.parseStatement()
+	if p.cur().Kind != term && p.cur().Kind != token.Semi {
+		if p.cur().Kind == token.Comma {
+			p.errorf(p.cur().Pos, "Unexpected %s operator not inside an arguments list for a query, loop, or math function", ast.OpComma)
+		}
+		p.errorf(p.cur().Pos, "expected ';' or end of block, got %s", p.cur().Kind)
+	}
+	return stmt, stmtPos
+}
+
+// parseStatementRecovering runs one list item for ParseAll and reports
+// whether it parsed. When it does not, the error is recorded and the parser
+// is moved to where the next item can start (see resync).
+//
+// The counters the parse keeps on the way down are put back as they were,
+// since the panic that carried the error skipped the code unwinding them.
+//
+// A problem the lexer reported in the same statement explains whatever the
+// parser then says about it -- an unreadable character, a string that
+// swallowed the rest of the line and so left `-'2` a negated string -- so
+// the parser's error is dropped rather than reported as a second, derived
+// problem.
+func (p *parser) parseStatementRecovering(term token.Kind, item func()) (ok bool) {
+	start := p.pos
+	nest, loops := p.nest, p.loopDepth
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		pe, isErr := r.(*Error)
+		if !isErr {
+			panic(r)
+		}
+		p.nest, p.loopDepth = nest, loops
+		p.pos = p.resync(start, p.pos, term)
+		for _, lp := range p.lexErrs {
+			if lp >= p.toks[start].Pos && lp <= p.toks[p.pos].Pos {
+				return
+			}
+		}
+		p.record(pe)
+	}()
+	item()
+	return true
+}
+
+// resync finds where the list item that started at token start, and failed
+// at token failedAt, ends: the first `;` at or after the failure that stands
+// at the item's own brace depth, or the `}` that closes the list, or the end
+// of the source.
+//
+// Parentheses are counted as well, so a `;` typed inside an argument list --
+// `math.lerp(1, 2;, 3)` -- does not end the statement early and leave `, 3)`
+// to be reported again. But a `(` the mistake left open would then swallow
+// everything after it, so when the parentheses never balance, the first `;`
+// at the right brace depth is used after all.
+//
+// A `}` with nothing open at the top level has no block to close; it is the
+// mistake, not the end of anything, and is stepped over.
+func (p *parser) resync(start, failedAt int, term token.Kind) int {
+	braces, parens, fallback := 0, 0, -1
+	i := start
+scan:
+	for ; p.toks[i].Kind != token.EOF; i++ {
+		switch p.toks[i].Kind {
+		case token.LBrace:
+			braces++
+		case token.RBrace:
+			if braces == 0 {
+				if term == token.EOF {
+					continue
+				}
+				break scan
+			}
+			braces--
+		case token.LParen, token.LBracket:
+			parens++
+		case token.RParen, token.RBracket:
+			if parens > 0 {
+				parens--
+			}
+		case token.Semi:
+			if braces == 0 && i >= failedAt {
+				if parens == 0 {
+					return i
+				}
+				if fallback < 0 {
+					fallback = i
+				}
+			}
+		}
+	}
+	if parens > 0 && fallback >= 0 {
+		return fallback
+	}
+	if i == start && p.toks[i].Kind != token.EOF {
+		// Nothing was consumed: step over the offending token itself, or the
+		// list would stop on it again.
+		i++
+	}
+	return i
 }
 
 // terminatingStmtName names the statement kinds that end execution where they
