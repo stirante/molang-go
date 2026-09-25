@@ -17,6 +17,10 @@ query that only works in world generation used in an entity, or an
 assignment in a block condition. The messages are the ones the content log
 would print, so a search for one finds the same thing you would see in game.
 
+**Quick fixes**: a deprecated query's replacement; for a query that does not
+resolve, the nearest names the field can use; `a.` to `array.`, `m.` to
+`math.` and other namespace slips; a missing final `;`.
+
 **Completion** of namespaces, queries and math functions with their
 signatures and documentation, the variables and temps the file already uses,
 and what can follow `->`.
@@ -24,9 +28,15 @@ and what can follow `->`.
 ![Completing a query, with its documentation](media/completion.png)
 
 **Hover** for queries and math functions, and for variables: where the file
-writes them and how often it reads them. **Signature help** inside calls.
+writes them and reads them -- in JSON, in which fields. **Signature help**
+inside calls.
 
 ![Hover on a math function](media/hover.png)
+
+**Go to definition, find references and rename** for `variable.*` and
+`temp.*`. In JSON a variable is one symbol across the file's fields (set in
+`scripts/initialize`, read in `scripts/animate`); a temp belongs to its one
+expression; `q.parent->v.x` is another entity's and is left alone.
 
 **Molang in JSON.** Strings in pack JSON are recognised by where they are,
 the way the game reads them: which queries a field can use and which
@@ -42,9 +52,11 @@ this string** and **Minify Molang in this string** are code actions on a
 Molang string, which stays on one line.
 
 Also: semantic highlighting, a grammar for `.molang` files, a **Molang:
-Minify** command, an outline of the variables a file uses, and **Molang:
-Show Molang regions in this file**, which outlines and lists where the
-extension reads Molang in the open file and what found each string.
+Minify** command, an outline of the variables a file uses, parameter names
+as inlay hints in query and math calls (off by default,
+`molang.inlayHints.parameterNames`), and **Molang: Show Molang regions in
+this file**, which outlines and lists where the extension reads Molang in
+the open file and what found each string.
 
 ### Files it reads
 
@@ -100,6 +112,11 @@ Molang has no comments, so the convention the community's tools share
 applies: `#` starts a comment to the end of the line. `#{ ... }` is a jsonte
 template, not a comment; it is left for jsonte.
 
+jsonte removes only comments that start with `# `, a hash and a space; a
+`#note` would reach the game, so it is a warning with a fix. A file saved with
+a byte order mark is a warning too: jsonte copies the mark into the JSON it
+builds, and the game refuses the expression it starts.
+
 Formatting keeps both. A comment stays with the statement it was written
 against: on its own line before it, at the end of its line, or before a
 block's closing brace. One written inside a statement, between the arms of a
@@ -116,10 +133,13 @@ covers far more of an add-on than Molang, and it has Molang support of its
 own. The two can be installed together, and this extension is built for
 that:
 
-- Diagnostics and hovers from both are shown. Where both report the same
-  mistake you will see it twice; Blockception can be told to stop reporting
-  its Molang codes in a project's `.mcattributes`
-  (`diagnostic.disable.<code>=true`).
+- Diagnostics and hovers from both are shown, so a Molang error in pack
+  JSON shows twice. **Molang: Let Molang handle Molang diagnostics** (offered
+  the first time it happens, and as a quick fix) adds Blockception's own
+  `diagnostic.disable.<code>=true` lines for its Molang diagnostics to the
+  project's `.mcattributes`: an ordinary edit, which undo takes back. Its
+  other diagnostics, and the Molang lints this extension has no equivalent
+  of, stay.
 - Highlighting cannot be shared, so in JSON this extension leaves it to
   Blockception while Blockception is installed
   (`molang.json.semanticTokens`).
@@ -153,6 +173,7 @@ skipped, as an unreachable one is on the desktop.
 | `molang.json.schemaDetection` | Also read the Molang JSON schemas mark. |
 | `molang.json.completion` | `auto`, `on` or `off`. |
 | `molang.json.semanticTokens` | `auto`, `on` or `off`. |
+| `molang.inlayHints.parameterNames` | Parameter names before call arguments. |
 
 ## How it works
 

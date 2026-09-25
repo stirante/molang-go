@@ -1,0 +1,13 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "test:thing",
+      "scripts": {
+        "initialize": ["variable.speed = 0; t.x = 1;"],
+        "pre_animation": ["v.speed = v.speed + 1; t.x = math.clamp(v.speed, 0, 10);"],
+        "animate": [{ "walk": "v.speed > 1" }]
+      }
+    }
+  }
+}

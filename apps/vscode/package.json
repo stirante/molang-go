@@ -79,6 +79,11 @@
         "title": "Show Molang regions in this file",
         "category": "Molang",
         "enablement": "editorLangId == molang || editorLangId == bc-minecraft-molang || editorLangId == json || editorLangId == jsonc"
+      },
+      {
+        "command": "molang.blockception.silenceDuplicates",
+        "title": "Let Molang handle Molang diagnostics",
+        "category": "Molang"
       }
     ],
     "menus": {
@@ -90,6 +95,10 @@
         {
           "command": "molang.showRegions",
           "when": "editorLangId == molang || editorLangId == bc-minecraft-molang || editorLangId == json || editorLangId == jsonc"
+        },
+        {
+          "command": "molang.blockception.silenceDuplicates",
+          "when": "workspaceFolderCount > 0"
         }
       ]
     },
@@ -171,6 +180,11 @@
           ],
           "default": "auto",
           "markdownDescription": "Semantic highlighting of Molang inside JSON strings. `auto` turns it off while the Blockception extension is active: only one extension's highlighting can apply to a JSON file."
+        },
+        "molang.inlayHints.parameterNames": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Show parameter names before the arguments of query and math calls: `math.clamp(value: v.x, min: 0, max: 1)`."
         }
       }
     }

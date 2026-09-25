@@ -3,6 +3,9 @@
 // and catalogue fetched from the extension's location, which the client
 // sends in its initialization options.
 //
+// Whether a .molang file starts with a byte order mark, which the editor's
+// text no longer shows, is asked of the client, which can read the file.
+//
 // A custom catalogue (molang.catalogue.path) is a file path, which a worker
 // cannot read; asking for one fails and the server falls back to the shipped
 // catalogue with a warning, as it does for any catalogue it cannot read.
@@ -11,7 +14,7 @@ import { BrowserMessageReader, BrowserMessageWriter, createConnection, TextDocum
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { MolangBridge } from './bridge';
 import { composeCatalogue } from './catalogue';
-import { startServer } from './server';
+import { ByteOrderMarkRequest, startServer } from './server';
 
 // The worker's own scope, typed as the Worker it talks to: the project is
 // type-checked against the DOM library, which cannot be combined with the
@@ -55,6 +58,9 @@ startServer({
   loadPaths: () => optional('data/molang-paths.json'),
   loadPathOverrides: () => optional('data/molang-paths.overrides.json'),
   uptime: () => performance.now(),
+  // A worker has no file system: the client reads the file's first bytes
+  // through the editor's (client/activate.ts).
+  hasByteOrderMark: (uri) => connection.sendRequest<boolean>(ByteOrderMarkRequest, { uri }),
 });
 
 documents.listen(connection);

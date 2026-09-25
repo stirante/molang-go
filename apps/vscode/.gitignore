@@ -5,3 +5,5 @@ dist/
 # Copied from the Go installation at build time; see scripts/build.mjs.
 src/server/generated/
 .vscode-test-web/
+# Written by the integration tests, and removed again.
+test/integration/fixtures/.mcattributes
