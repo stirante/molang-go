@@ -26,6 +26,12 @@ export interface ServerHost {
   loadPaths(): Promise<string | undefined>;
   /** Milliseconds since the server process started, for the startup log. */
   uptime(): number;
+  /**
+   * The client's initialization options, before anything is loaded: how a
+   * host learns what it has no other way to know, such as the web client's
+   * extension location.
+   */
+  initialize?(options: InitializationOptions): void;
 }
 
 /** The client's settings, as the molang configuration section. */
@@ -38,6 +44,8 @@ interface ClientSettings {
 export interface InitializationOptions {
   settings?: ClientSettings;
   environment?: Environment;
+  /** Where the extension is, as a URL; sent by the web client only. */
+  extensionUri?: string;
 }
 
 /** Requests and notifications beyond the protocol. */
@@ -109,6 +117,7 @@ export function startServer(host: ServerHost) {
     const init = (params.initializationOptions ?? {}) as InitializationOptions;
     applySettings(init.settings);
     if (init.environment) environment = init.environment;
+    host.initialize?.(init);
     canRefreshTokens = !!params.capabilities.workspace?.semanticTokens?.refreshSupport;
     service = (async () => {
       const t0 = host.uptime();

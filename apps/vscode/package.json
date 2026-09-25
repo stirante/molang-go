@@ -24,6 +24,7 @@
     "bedrock"
   ],
   "main": "./dist/extension.js",
+  "browser": "./dist/web/extension.js",
   "activationEvents": [
     "onLanguage:molang",
     "onLanguage:bc-minecraft-molang",
@@ -124,6 +125,7 @@
     "test": "npm run build && vitest run",
     "test:unit": "vitest run",
     "test:integration": "npm run build && node scripts/build.mjs --integration && node dist/test/runIntegration.js",
+    "test:web": "npm run build && node scripts/build.mjs --web-tests && node dist/test/runWeb.js",
     "package": "vsce package --no-dependencies --out molang.vsix",
     "vscode:prepublish": "npm run build"
   },
@@ -138,8 +140,10 @@
     "@types/node": "^22.19.0",
     "@types/vscode": "1.91.0",
     "@vscode/test-electron": "^3.1.0",
+    "@vscode/test-web": "^0.0.81",
     "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.28.2",
+    "playwright": "^1.63.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.2"
   }

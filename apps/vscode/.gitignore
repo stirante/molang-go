@@ -4,3 +4,4 @@ dist/
 .vscode-test/
 # Copied from the Go installation at build time; see scripts/build.mjs.
 src/server/generated/
+.vscode-test-web/

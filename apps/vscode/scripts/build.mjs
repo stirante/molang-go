@@ -5,6 +5,7 @@
 //   node scripts/build.mjs --wasm-only   just the module and wasm_exec.js
 //   node scripts/build.mjs --watch       rebundle the TypeScript on change
 //   node scripts/build.mjs --integration also bundle the integration tests
+//   node scripts/build.mjs --web-tests   also bundle the web smoke tests
 //
 // wasm_exec.js, the JavaScript half of Go's WebAssembly support, is copied
 // from the Go installation that builds the module rather than kept in the
@@ -56,9 +57,40 @@ const common = {
   logLevel: 'info',
 };
 
+// The web extension (package.json "browser"): the client runs in the
+// editor's web extension host, which loads CommonJS; the server is a plain
+// script for a Web Worker. Both use the packages' browser builds.
+const web = {
+  bundle: true,
+  mainFields: ['browser', 'module', 'main'],
+  platform: 'browser',
+  target: 'es2022',
+  sourcemap: true,
+  logLevel: 'info',
+};
+
 const bundles = [
   { ...common, entryPoints: [path.join(root, 'src', 'extension.ts')], outfile: path.join(root, 'dist', 'extension.js'), external: ['vscode'] },
   { ...common, entryPoints: [path.join(root, 'src', 'server', 'node.ts')], outfile: path.join(root, 'dist', 'server.js') },
+  {
+    ...web,
+    format: 'cjs',
+    entryPoints: [path.join(root, 'src', 'web', 'extension.ts')],
+    outfile: path.join(root, 'dist', 'web', 'extension.js'),
+    external: ['vscode'],
+  },
+  { ...web, format: 'iife', entryPoints: [path.join(root, 'src', 'server', 'browser.ts')], outfile: path.join(root, 'dist', 'web', 'server.js') },
+];
+
+const webTests = [
+  { ...common, entryPoints: [path.join(root, 'test', 'web', 'runWeb.ts')], outfile: path.join(root, 'dist', 'test', 'runWeb.js'), external: ['@vscode/test-web'] },
+  {
+    ...web,
+    format: 'cjs',
+    entryPoints: [path.join(root, 'test', 'web', 'suite.ts')],
+    outfile: path.join(root, 'dist', 'test', 'web', 'suite.js'),
+    external: ['vscode'],
+  },
 ];
 
 const integration = [
@@ -78,6 +110,8 @@ const integration = [
 
 if (args.has('--integration')) {
   for (const b of integration) await esbuild.build(b);
+} else if (args.has('--web-tests')) {
+  for (const b of webTests) await esbuild.build(b);
 } else {
   buildWasm();
   if (!args.has('--wasm-only')) {

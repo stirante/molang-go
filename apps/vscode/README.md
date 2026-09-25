@@ -74,5 +74,6 @@ npm install
 npm run build        # the WebAssembly module and the bundles
 npm test             # unit tests, over the real module
 npm run test:integration   # in a downloaded VS Code; opens a window
+npm run test:web     # the web build in VS Code for the Web, headless Chromium
 npm run package      # molang.vsix
 ```
