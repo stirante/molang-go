@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test ./...
+
+      # cmd/molang-wasm only compiles for js/wasm, so nothing above builds it:
+      # its logic is tested natively (package bridge), and this is what
+      # catches the glue itself breaking.
+      - name: Build the WebAssembly bridge
+        run: |
+          GOOS=js GOARCH=wasm go vet ./cmd/molang-wasm
+          GOOS=js GOARCH=wasm go build -o /dev/null ./cmd/molang-wasm
+
+  extension:
+    name: VS Code extension
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/vscode
+    steps:
+      - uses: actions/checkout@v4
+
+      # The build compiles the WebAssembly module from the Go source.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/vscode/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      # VS Code has no headless mode; xvfb-run gives it a display.
+      - name: Integration tests (desktop VS Code)
+        run: xvfb-run -a npm run test:integration
+
+      # The npm package does not bring the browser's system libraries.
+      - name: Install Playwright's Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Web tests (VS Code for the Web)
+        run: npm run test:web
+
+      - name: Package
+        run: npm run package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: molang-vsix
+          path: apps/vscode/molang.vsix
+          if-no-files-found: error
+
+  # The Molang path catalogue (apps/vscode/data/molang-paths.json), checked
+  # against its sources: rebuilt from both schema sets and compared with the
+  # committed file (freshness), and every vanilla pack string it calls Molang
+  # parsed, every Molang-looking string it misses explained (golden).
+  #
+  # Both inputs are pinned, so this fails when the catalogue or the parser
+  # changes, not when upstream does. Moving to a newer game version is moving
+  # both pins and rerunning build-molang-paths.mjs in the same change. The
+  # Blockception commit is the one whose behavior/ and resource/ match the
+  # schemas the catalogue was built from.
+  molang-paths:
+    name: Molang path catalogue
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Mojang/bedrock-samples
+          ref: v1.26.50.4
+          path: bedrock-samples
+          sparse-checkout: |
+            behavior_pack
+            resource_pack
+            metadata/json_schemas
+
+      - uses: actions/checkout@v4
+        with:
+          repository: Blockception/Minecraft-bedrock-json-schemas
+          ref: ee241621b5556e26b0d670b9a3b9b8bab019af54
+          path: blockception-schemas
+          sparse-checkout: |
+            behavior
+            resource
+
+      # The golden check parses with molang-go itself (go run
+      # ./apps/vscode/tools/molangcheck).
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Freshness and golden check
+        run: >
+          node apps/vscode/tools/test-molang-paths.mjs
+          --samples bedrock-samples
+          --blockception blockception-schemas
