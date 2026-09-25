@@ -23,7 +23,8 @@ github.com/stirante/molang-go/
   eval/       *ast.Program -> compiled closure tree, RNG/Scope/Context, math.* table
   printer/    Format (readable) and Minify (shortest valid output)
   transform/  constant folding; macro registration + expansion (bitshift worked example)
-  worldgen/   optional extension: query.noise/has_biome_tag/heightmap/above_top_solid
+  worldgen/   optional extension: the six world_gen queries (noise, heightmap,
+              above_top_solid, has_biome_tag, has_any_biome_tags, has_all_biome_tags)
   mtrand/     MT19937 port (the engine's core RNG) — used by worldgen.Noise and as a
               reproducible eval.RNG for testing
   molang.go   thin convenience API tying Parse+Compile+Run together
@@ -102,9 +103,10 @@ Three things come from the host rather than being built in:
   safe with whole-pack analysis. `Minify` shortens the namespace spelling
   and nothing else.
 - **Worldgen query functions in the core** (`query.noise`, `has_biome_tag`,
-  `heightmap`, `above_top_solid`). Real Bedrock queries, but specific to one
-  game system. They live in the separate `worldgen` package — including a
-  bit-exact `query.noise` port — wired in through `eval.Context.QueryFuncs`.
+  `has_any_biome_tags`, `has_all_biome_tags`, `heightmap`, `above_top_solid`).
+  Real Bedrock queries, but specific to one game system. They live in the
+  separate `worldgen` package — including a bit-exact `query.noise` port —
+  wired in through `eval.Context.QueryFuncs`.
 
 ## What sets it apart
 
