@@ -122,11 +122,14 @@ func TestForEachSourceIsAnyExpression(t *testing.T) {
 		"for_each(t.x, array.vals[0], {v.n = 1;});",
 		"for_each(t.x, 1 + 2, {v.n = 1;});",
 		"for_each(t.x, q.a ? q.b : q.c, {v.n = 1;});",
-		"for_each(t.x, a.vals, {v.n = 1;});",
 	} {
 		if _, err := Compile(src); err != nil {
 			t.Errorf("%q: %v", src, err)
 		}
+	}
+	// `a.` is not an alias of array. to the game, here or anywhere.
+	if _, err := Compile("for_each(t.x, a.vals, {v.n = 1;});"); err == nil {
+		t.Error("a.vals accepted; the game has no a. alias")
 	}
 }
 

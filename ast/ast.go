@@ -91,9 +91,8 @@ func (n Namespace) ShortAlias() string {
 	case Context:
 		return "c"
 	case Array:
-		// No short form is emitted for arrays. `a.` is accepted on input
-		// because the tokenizer takes it, but a one-letter namespace that
-		// collides with nothing else gains little and reads badly.
+		// Arrays have no short form: `a.` is not one of the engine's
+		// aliases (see NamespaceAliases).
 		return "array"
 	case Geometry:
 		return "geometry"
@@ -107,7 +106,11 @@ func (n Namespace) ShortAlias() string {
 
 // NamespaceAliases maps every lower-cased spelling this module's LEXER
 // accepts to its Namespace. It is exactly the set the engine accepts: the
-// four long names, and the four two-character prefixes v./q./t./c.
+// long names, and the four two-character prefixes v./q./t./c.
+//
+// "a" for array. was here too, and went for the same reason as "m" below:
+// the engine's alias list is those four prefixes and nothing else, so
+// `a.list[0]` is an unknown token to the game and does not load.
 //
 // "m" USED TO BE HERE and was removed deliberately. It is not engine-legal
 // — see ShortAlias — and accepting it was justified as a one-way leniency,
@@ -135,7 +138,6 @@ var NamespaceAliases = map[string]Namespace{
 	"context":  Context,
 	"c":        Context,
 	"array":    Array,
-	"a":        Array,
 	"geometry": Geometry,
 	"material": Material,
 	"texture":  Texture,
