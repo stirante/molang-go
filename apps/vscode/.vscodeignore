@@ -1,5 +1,7 @@
 # Only what the extension runs is packaged: the bundles (desktop and web),
 # the module, the grammar, the language configuration and the catalogue.
+# The README's screenshots are not: the listing links them from the
+# repository (see the package script's --baseImagesUrl).
 **
 !dist/extension.js
 !dist/server.js
@@ -12,4 +14,6 @@
 !language-configuration.json
 !package.json
 !README.md
+!CHANGELOG.md
+!media/icon.png
 !LICENSE
