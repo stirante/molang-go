@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.vsix
+.vscode-test/
+# Copied from the Go installation at build time; see scripts/build.mjs.
+src/server/generated/

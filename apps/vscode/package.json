@@ -1,0 +1,146 @@
+{
+  "name": "molang",
+  "displayName": "Molang",
+  "description": "Molang language support for Minecraft Bedrock: diagnostics in the game's own words, completion, hover, signature help, formatting and minifying, in .molang files and in animation controller JSON.",
+  "version": "0.1.0",
+  "publisher": "stirante",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stirante/molang-go",
+    "directory": "apps/vscode"
+  },
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Formatters"
+  ],
+  "keywords": [
+    "molang",
+    "minecraft",
+    "bedrock"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:molang",
+    "onLanguage:bc-minecraft-molang",
+    "onLanguage:json",
+    "onLanguage:jsonc"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "molang",
+        "aliases": [
+          "Molang",
+          "molang"
+        ],
+        "extensions": [
+          ".molang"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "molang",
+        "scopeName": "source.molang",
+        "path": "./syntaxes/molang.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "molang.minify",
+        "title": "Minify",
+        "category": "Molang",
+        "enablement": "editorLangId == molang || editorLangId == bc-minecraft-molang"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "molang.minify",
+          "when": "editorLangId == molang || editorLangId == bc-minecraft-molang"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Molang",
+      "properties": {
+        "molang.catalogue.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to a `catalogue.json` to use instead of the one shipped with the extension."
+        },
+        "molang.diagnostics.unknownQueries": {
+          "type": "string",
+          "enum": [
+            "default",
+            "error",
+            "warning",
+            "information",
+            "hint",
+            "off"
+          ],
+          "default": "default",
+          "markdownDescription": "Severity for a query name that does not resolve where it is written: not in the catalogue, or not one the field can name. `default` is an error, as the game refuses to load the expression."
+        },
+        "molang.json.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Molang features inside JSON files (animation controllers)."
+        },
+        "molang.json.completion": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "on",
+            "off"
+          ],
+          "default": "auto",
+          "markdownDescription": "Molang completion inside JSON strings. `auto` turns it off while the Blockception extension offers its own, so the two lists are not doubled."
+        },
+        "molang.json.semanticTokens": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "on",
+            "off"
+          ],
+          "default": "auto",
+          "markdownDescription": "Semantic highlighting of Molang inside JSON strings. `auto` turns it off while the Blockception extension is active: only one extension's highlighting can apply to a JSON file."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:wasm": "node scripts/build.mjs --wasm-only",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "npm run build && vitest run",
+    "test:unit": "vitest run",
+    "test:integration": "npm run build && node scripts/build.mjs --integration && node dist/test/runIntegration.js",
+    "package": "vsce package --no-dependencies --out molang.vsix",
+    "vscode:prepublish": "npm run build"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.3.1",
+    "vscode-languageclient": "^10.1.2",
+    "vscode-languageserver": "^10.1.2",
+    "vscode-languageserver-textdocument": "^1.0.15",
+    "vscode-languageserver-types": "^3.18.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/vscode": "1.91.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  }
+}

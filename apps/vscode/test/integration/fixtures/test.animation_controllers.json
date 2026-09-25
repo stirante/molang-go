@@ -1,0 +1,14 @@
+{
+  "format_version": "1.10.0",
+  "animation_controllers": {
+    "controller.animation.test": {
+      "states": {
+        "default": {
+          "animations": [{ "walk": "q.is_moving" }],
+          "transitions": [{ "attack": "v.name == 'café \"x\"' && ;" }],
+          "on_entry": ["v.count = math.nope(1);", "/say hi"]
+        }
+      }
+    }
+  }
+}

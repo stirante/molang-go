@@ -1,0 +1,214 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Molang",
+  "scopeName": "source.molang",
+  "comment": "Molang in .molang files. '#' starts a line comment, as Blockception, bridge. and jsonte read these files; '#{ ... }' is a jsonte template, not a comment. The scope name is source.molang so jsonte's own template highlighting injects into it.",
+  "patterns": [
+    {
+      "include": "#template"
+    },
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#expression"
+    }
+  ],
+  "repository": {
+    "template": {
+      "begin": "#\\{",
+      "end": "\\}",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.template-expression.begin.molang"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.template-expression.end.molang"
+        }
+      },
+      "name": "meta.template.expression.molang",
+      "contentName": "meta.embedded.line.jsonte",
+      "patterns": [
+        {
+          "include": "#template-braces"
+        }
+      ]
+    },
+    "template-braces": {
+      "begin": "\\{",
+      "end": "\\}",
+      "patterns": [
+        {
+          "include": "#template-braces"
+        }
+      ]
+    },
+    "comment": {
+      "match": "#(?!\\{).*$",
+      "name": "comment.line.number-sign.molang"
+    },
+    "expression": {
+      "patterns": [
+        {
+          "include": "#string"
+        },
+        {
+          "include": "#number"
+        },
+        {
+          "include": "#keyword"
+        },
+        {
+          "match": "\\b(?i:(query|q))(\\.)([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)",
+          "captures": {
+            "1": {
+              "name": "support.type.namespace.molang"
+            },
+            "2": {
+              "name": "punctuation.accessor.molang"
+            },
+            "3": {
+              "name": "support.function.query.molang"
+            }
+          }
+        },
+        {
+          "match": "\\b(?i:(math))(\\.)([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)",
+          "captures": {
+            "1": {
+              "name": "support.type.namespace.molang"
+            },
+            "2": {
+              "name": "punctuation.accessor.molang"
+            },
+            "3": {
+              "name": "support.function.math.molang"
+            }
+          }
+        },
+        {
+          "match": "\\b(?i:(variable|v|temp|t))(\\.)([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)",
+          "captures": {
+            "1": {
+              "name": "support.type.namespace.molang"
+            },
+            "2": {
+              "name": "punctuation.accessor.molang"
+            },
+            "3": {
+              "name": "variable.other.molang"
+            }
+          }
+        },
+        {
+          "match": "\\b(?i:(context|c))(\\.)([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)",
+          "captures": {
+            "1": {
+              "name": "support.type.namespace.molang"
+            },
+            "2": {
+              "name": "punctuation.accessor.molang"
+            },
+            "3": {
+              "name": "variable.other.constant.molang"
+            }
+          }
+        },
+        {
+          "match": "\\b(?i:(array|geometry|material|texture))(\\.)([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)",
+          "captures": {
+            "1": {
+              "name": "support.type.namespace.molang"
+            },
+            "2": {
+              "name": "punctuation.accessor.molang"
+            },
+            "3": {
+              "name": "variable.other.property.molang"
+            }
+          }
+        },
+        {
+          "include": "#operator"
+        },
+        {
+          "match": ";",
+          "name": "punctuation.terminator.statement.molang"
+        },
+        {
+          "match": ",",
+          "name": "punctuation.separator.comma.molang"
+        }
+      ]
+    },
+    "string": {
+      "begin": "'",
+      "end": "'",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.molang"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.molang"
+        }
+      },
+      "name": "string.quoted.single.molang"
+    },
+    "number": {
+      "match": "(?<![A-Za-z0-9_.])(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?[fF]?\\b",
+      "name": "constant.numeric.molang"
+    },
+    "keyword": {
+      "patterns": [
+        {
+          "match": "\\b(?i:return|loop|for_each|break|continue)\\b",
+          "name": "keyword.control.molang"
+        },
+        {
+          "match": "\\b(?i:true|false)\\b",
+          "name": "constant.language.boolean.molang"
+        },
+        {
+          "match": "\\b(?i:this)\\b",
+          "name": "variable.language.this.molang"
+        }
+      ]
+    },
+    "operator": {
+      "patterns": [
+        {
+          "match": "->",
+          "name": "keyword.operator.arrow.molang"
+        },
+        {
+          "match": "\\?\\?",
+          "name": "keyword.operator.null-coalescing.molang"
+        },
+        {
+          "match": "==|!=|<=|>=|<|>",
+          "name": "keyword.operator.comparison.molang"
+        },
+        {
+          "match": "&&|\\|\\||!",
+          "name": "keyword.operator.logical.molang"
+        },
+        {
+          "match": "=",
+          "name": "keyword.operator.assignment.molang"
+        },
+        {
+          "match": "[-+*/]",
+          "name": "keyword.operator.arithmetic.molang"
+        },
+        {
+          "match": "[?:]",
+          "name": "keyword.operator.ternary.molang"
+        }
+      ]
+    }
+  }
+}

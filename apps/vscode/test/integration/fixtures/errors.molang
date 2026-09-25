@@ -1,0 +1,4 @@
+# a comment; with a ; that is not Molang
+v.a = ;
+v.b = #{value};
+v.c = );

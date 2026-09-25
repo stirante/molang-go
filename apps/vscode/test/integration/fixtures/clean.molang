@@ -1,0 +1,3 @@
+v.speed = q.is_baby ? 1 : 2;
+t.x = math.clamp(v.speed, 0, 1);
+return t.x;
