@@ -184,7 +184,9 @@ and the tests are the fastest way to see one.
   `??`; write `v.a ?? (v.b ?? 5)`. It binds looser than the conditional and
   tighter than `=`: `v.a ?? 1 ? 2 : 3` is `v.a ?? (1 ? 2 : 3)`, `v.x = v.y
   ?? 1` assigns the fallback, and a `??` inside a conditional's arm or
-  condition needs parentheses.
+  condition needs parentheses. The right side may be a brace block, which
+  runs only when the read fails: `v.dir ?? { v.dir.x = 0; v.dir.y = 1; };`
+  is how vanilla particles default a variable a script may have supplied.
 - **Falsiness is exactly zero.** `?`, `!`, `&&` and `||` all treat NaN as
   truthy, so `math.sqrt(-1) ? 111 : 222` is 111.
 - **A trailing `;` throws the value away.** `1+1;` is 0 and `1+1` is 2;

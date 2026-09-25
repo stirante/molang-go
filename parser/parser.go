@@ -931,6 +931,16 @@ func (p *parser) plainBlock(b *ast.Block) *ast.CondBlockStmt {
 // `v.a ?? (v.b ?? 1)`. Parentheses around a read itself change nothing,
 // because the game checks the tree it built, not the text: `(v.x) ?? 1` is
 // fine. Refused here at parse time, with the game's wording.
+//
+// The right side may be a brace block, which runs only when the left side
+// does not resolve:
+//
+//	variable.direction ?? { variable.direction.x = 0.0; variable.direction.y = 1.0; };
+//
+// That is how vanilla particles give a script-supplied variable its default
+// when nothing supplied it -- a dozen of them, in their emitters' creation
+// expressions -- so the game loads it. A block yields 0 like any block, so
+// the `??` does too when the block runs.
 func (p *parser) parseNullish() ast.Expr {
 	left := p.parseTernary()
 	for p.cur().Kind == token.Coalesce {
@@ -938,7 +948,12 @@ func (p *parser) parseNullish() ast.Expr {
 			p.errorf(p.cur().Pos, "found left-hand-side of ?? expression that isn't a direct-variable reference - this is unsupported at this time.")
 		}
 		p.advance()
-		right := p.parseTernary()
+		var right ast.Expr
+		if p.cur().Kind == token.LBrace {
+			right = p.plainBlock(p.parseBlock())
+		} else {
+			right = p.parseTernary()
+		}
 		left = &ast.BinaryExpr{Op: ast.NullCoalesce, X: left, Y: right}
 	}
 	return left

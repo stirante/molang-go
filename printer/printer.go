@@ -391,6 +391,11 @@ func (f *formatter) exprPrec(e ast.Expr) (string, int) {
 		}
 		return out, precTernary
 	case *ast.CondBlockStmt:
+		// A bare block in expression position is the right side of a `??`;
+		// the ternary arms that can also be one print theirs themselves.
+		if isPlainElse(e) {
+			return f.block(e.Body), precPrimary
+		}
 		return f.condBlock(e), precTernary
 	}
 	return "?", precPrimary

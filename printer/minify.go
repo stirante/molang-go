@@ -176,6 +176,10 @@ func (m *minifier) exprPrec(e ast.Expr) (string, int) {
 		}
 		return out, precTernary
 	case *ast.CondBlockStmt:
+		// The right side of a `??`; see formatter.exprPrec.
+		if isPlainElse(e) {
+			return m.block(e.Body), precPrimary
+		}
 		return m.condBlock(e), precTernary
 	}
 	return "?", precPrimary
