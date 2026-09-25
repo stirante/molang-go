@@ -1,0 +1,2137 @@
+{
+  "gameVersion": "",
+  "partial": true,
+  "description": "Hand-written placeholder listing a few common queries. Replaced by the full catalogue.",
+  "queries": [
+    {
+      "name": "anim_time",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Seconds since the current animation started playing.",
+      "notes": []
+    },
+    {
+      "name": "life_time",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Seconds since the current animation or animation controller state started.",
+      "notes": []
+    },
+    {
+      "name": "delta_time",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Seconds between the previous frame and this one.",
+      "notes": []
+    },
+    {
+      "name": "is_baby",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "1 when the entity is a baby, otherwise 0.",
+      "notes": []
+    },
+    {
+      "name": "is_on_ground",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "1 when the entity is standing on the ground, otherwise 0.",
+      "notes": []
+    },
+    {
+      "name": "is_moving",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "1 when the entity is moving, otherwise 0.",
+      "notes": []
+    },
+    {
+      "name": "is_sneaking",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "1 when the entity is sneaking, otherwise 0.",
+      "notes": []
+    },
+    {
+      "name": "is_in_water",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "1 when the entity is in water, otherwise 0.",
+      "notes": []
+    },
+    {
+      "name": "is_alive",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "1 when the entity is alive, otherwise 0.",
+      "notes": []
+    },
+    {
+      "name": "health",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "The entity's current health.",
+      "notes": []
+    },
+    {
+      "name": "max_health",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "The entity's maximum health.",
+      "notes": []
+    },
+    {
+      "name": "modified_distance_moved",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Total horizontal distance the entity has moved, scaled for walk animations.",
+      "notes": []
+    },
+    {
+      "name": "ground_speed",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "The entity's horizontal speed, in blocks per second.",
+      "notes": []
+    },
+    {
+      "name": "vertical_speed",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "The entity's vertical speed, in blocks per second.",
+      "notes": []
+    },
+    {
+      "name": "variant",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "The entity's variant index, as set by its minecraft:variant component.",
+      "notes": []
+    },
+    {
+      "name": "mark_variant",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "The entity's mark variant index, as set by its minecraft:mark_variant component.",
+      "notes": []
+    },
+    {
+      "name": "time_of_day",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "The time of day as a fraction of a full day, from 0 to 1.",
+      "notes": []
+    },
+    {
+      "name": "body_y_rotation",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "The body's rotation around the vertical axis, in degrees.",
+      "notes": []
+    },
+    {
+      "name": "get_equipped_item_name",
+      "args": [
+        {
+          "name": "hand",
+          "type": "any",
+          "optional": true
+        },
+        {
+          "name": "rendered",
+          "type": "number",
+          "optional": true
+        }
+      ],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 2,
+      "returns": "string",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "The name of the item held in a hand, without its namespace.",
+      "notes": [
+        "The hand is 0 or 'main_hand' for the main hand, 1 or 'off_hand' for the off hand."
+      ]
+    },
+    {
+      "name": "is_item_name_any",
+      "args": [
+        {
+          "name": "slot",
+          "type": "string",
+          "optional": false
+        },
+        {
+          "name": "index",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "names",
+          "type": "string",
+          "optional": false
+        }
+      ],
+      "variadic": true,
+      "minArgs": 3,
+      "maxArgs": -1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "1 when the item in the given slot and index is any of the listed item names, otherwise 0.",
+      "notes": []
+    }
+  ],
+  "math": [
+    {
+      "name": "pi",
+      "args": [],
+      "variadic": false,
+      "minArgs": 0,
+      "maxArgs": 0,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "The constant pi, as a float32. Not a function: write math.pi without parentheses.",
+      "notes": []
+    },
+    {
+      "name": "abs",
+      "args": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Absolute value.",
+      "notes": []
+    },
+    {
+      "name": "acos",
+      "args": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Arc cosine, in degrees.",
+      "notes": [
+        "The argument is clamped to [-1, 1], so a value a rounding error outside the domain gives the endpoint rather than NaN."
+      ]
+    },
+    {
+      "name": "asin",
+      "args": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Arc sine, in degrees.",
+      "notes": [
+        "The argument is clamped to [-1, 1], so a value a rounding error outside the domain gives the endpoint rather than NaN."
+      ]
+    },
+    {
+      "name": "atan",
+      "args": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Arc tangent, in degrees.",
+      "notes": []
+    },
+    {
+      "name": "atan2",
+      "args": [
+        {
+          "name": "y",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "x",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 2,
+      "maxArgs": 2,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Arc tangent of y/x, in degrees, using both signs to pick the quadrant.",
+      "notes": []
+    },
+    {
+      "name": "ceil",
+      "args": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Rounds up to the next whole number.",
+      "notes": []
+    },
+    {
+      "name": "clamp",
+      "args": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "min",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "max",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Limits value to the range from min to max.",
+      "notes": [
+        "The upper bound is tested first, so with min greater than max the result is max."
+      ]
+    },
+    {
+      "name": "copy_sign",
+      "args": [
+        {
+          "name": "a",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "b",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 2,
+      "maxArgs": 2,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "a with the sign of b.",
+      "notes": []
+    },
+    {
+      "name": "cos",
+      "args": [
+        {
+          "name": "degrees",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Cosine of an angle in degrees.",
+      "notes": []
+    },
+    {
+      "name": "die_roll",
+      "args": [
+        {
+          "name": "num",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "low",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "high",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Sum of num random numbers, each between low and high.",
+      "notes": [
+        "Draws num random numbers; the result differs every evaluation."
+      ]
+    },
+    {
+      "name": "die_roll_integer",
+      "args": [
+        {
+          "name": "num",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "low",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "high",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Sum of num random whole numbers, each from low to high inclusive.",
+      "notes": [
+        "Draws num random numbers; the result differs every evaluation."
+      ]
+    },
+    {
+      "name": "exp",
+      "args": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "e raised to the power of value.",
+      "notes": []
+    },
+    {
+      "name": "floor",
+      "args": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Rounds down to the previous whole number.",
+      "notes": []
+    },
+    {
+      "name": "hermite_blend",
+      "args": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "The smoothstep curve 3t^2 - 2t^3 at value.",
+      "notes": []
+    },
+    {
+      "name": "inverse_lerp",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Where value lies between start and end, as a fraction: 0 at start, 1 at end.",
+      "notes": [
+        "Unlike the / operator, a zero span (start equal to end) is not guarded and gives an infinity or NaN."
+      ]
+    },
+    {
+      "name": "lerp",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Linear interpolation from start to end by t.",
+      "notes": []
+    },
+    {
+      "name": "lerprotate",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates between two angles in degrees along the shorter way round.",
+      "notes": []
+    },
+    {
+      "name": "ln",
+      "args": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Natural logarithm.",
+      "notes": []
+    },
+    {
+      "name": "max",
+      "args": [
+        {
+          "name": "a",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "b",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 2,
+      "maxArgs": 2,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "The larger of a and b.",
+      "notes": []
+    },
+    {
+      "name": "min",
+      "args": [
+        {
+          "name": "a",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "b",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 2,
+      "maxArgs": 2,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "The smaller of a and b.",
+      "notes": []
+    },
+    {
+      "name": "min_angle",
+      "args": [
+        {
+          "name": "degrees",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "The same angle wrapped into the range -180 to 180.",
+      "notes": []
+    },
+    {
+      "name": "mod",
+      "args": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "denominator",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 2,
+      "maxArgs": 2,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Remainder of value divided by denominator.",
+      "notes": []
+    },
+    {
+      "name": "pow",
+      "args": [
+        {
+          "name": "base",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "exponent",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 2,
+      "maxArgs": 2,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "base raised to the power of exponent.",
+      "notes": []
+    },
+    {
+      "name": "random",
+      "args": [
+        {
+          "name": "low",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "high",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 2,
+      "maxArgs": 2,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "A random number between low and high.",
+      "notes": [
+        "Draws one random number; the result differs every evaluation."
+      ]
+    },
+    {
+      "name": "random_integer",
+      "args": [
+        {
+          "name": "low",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "high",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 2,
+      "maxArgs": 2,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "A random whole number from low to high inclusive.",
+      "notes": [
+        "Draws one random number; the result differs every evaluation."
+      ]
+    },
+    {
+      "name": "round",
+      "args": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Rounds to the nearest whole number.",
+      "notes": []
+    },
+    {
+      "name": "sign",
+      "args": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "1 for a positive value and -1 for a negative one.",
+      "notes": []
+    },
+    {
+      "name": "sin",
+      "args": [
+        {
+          "name": "degrees",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Sine of an angle in degrees.",
+      "notes": []
+    },
+    {
+      "name": "sqrt",
+      "args": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Square root.",
+      "notes": []
+    },
+    {
+      "name": "trunc",
+      "args": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 1,
+      "maxArgs": 1,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Drops the fractional part, rounding towards zero.",
+      "notes": []
+    },
+    {
+      "name": "ease_in_quad",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a quad curve that eases in (slow start).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_out_quad",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a quad curve that eases out (slow finish).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_out_quad",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a quad curve that eases in and out.",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_cubic",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a cubic curve that eases in (slow start).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_out_cubic",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a cubic curve that eases out (slow finish).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_out_cubic",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a cubic curve that eases in and out.",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_quart",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a quart curve that eases in (slow start).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_out_quart",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a quart curve that eases out (slow finish).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_out_quart",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a quart curve that eases in and out.",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_quint",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a quint curve that eases in (slow start).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_out_quint",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a quint curve that eases out (slow finish).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_out_quint",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a quint curve that eases in and out.",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_sine",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a sine curve that eases in (slow start).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_out_sine",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a sine curve that eases out (slow finish).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_out_sine",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a sine curve that eases in and out.",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_expo",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a expo curve that eases in (slow start).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_out_expo",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a expo curve that eases out (slow finish).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_out_expo",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a expo curve that eases in and out.",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_circ",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a circ curve that eases in (slow start).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_out_circ",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a circ curve that eases out (slow finish).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_out_circ",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a circ curve that eases in and out.",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_bounce",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a bounce curve that eases in (slow start).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_out_bounce",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a bounce curve that eases out (slow finish).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_out_bounce",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a bounce curve that eases in and out.",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_back",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a back curve that eases in (slow start).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_out_back",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a back curve that eases out (slow finish).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_out_back",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a back curve that eases in and out.",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_elastic",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a elastic curve that eases in (slow start).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_out_elastic",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a elastic curve that eases out (slow finish).",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    },
+    {
+      "name": "ease_in_out_elastic",
+      "args": [
+        {
+          "name": "start",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "end",
+          "type": "number",
+          "optional": false
+        },
+        {
+          "name": "t",
+          "type": "number",
+          "optional": false
+        }
+      ],
+      "variadic": false,
+      "minArgs": 3,
+      "maxArgs": 3,
+      "returns": "number",
+      "deprecated": null,
+      "versionGate": null,
+      "experimental": null,
+      "contexts": null,
+      "clientOnly": false,
+      "description": "Interpolates from start to end by t along a elastic curve that eases in and out.",
+      "notes": [
+        "t is not clamped: values outside 0 to 1 extrapolate the curve."
+      ]
+    }
+  ],
+  "namespaces": [
+    {
+      "name": "query",
+      "alias": "q",
+      "description": "Read-only values and functions the game provides about the entity, block or world being evaluated."
+    },
+    {
+      "name": "math",
+      "alias": "",
+      "description": "Mathematical functions and the constant math.pi."
+    },
+    {
+      "name": "variable",
+      "alias": "v",
+      "description": "Variables belonging to the entity, kept between evaluations. Readable and writable."
+    },
+    {
+      "name": "temp",
+      "alias": "t",
+      "description": "Scratch values for the current evaluation. Readable and writable."
+    },
+    {
+      "name": "context",
+      "alias": "c",
+      "description": "Values the game supplies for the place the expression runs in. Read-only."
+    },
+    {
+      "name": "array",
+      "alias": "a",
+      "description": "Arrays defined by the host, indexed with array.name[index]."
+    },
+    {
+      "name": "geometry",
+      "alias": "",
+      "description": "Geometry resources, for render controllers."
+    },
+    {
+      "name": "material",
+      "alias": "",
+      "description": "Material resources, for render controllers."
+    },
+    {
+      "name": "texture",
+      "alias": "",
+      "description": "Texture resources, for render controllers."
+    }
+  ],
+  "contexts": []
+}
