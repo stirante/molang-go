@@ -63,7 +63,12 @@ anything off.
 ## Alongside Blockception
 
 Blockception's extension has Molang support of its own. Diagnostics, completion
-and hover from both extensions are shown together. Semantic highlighting cannot
+and hover from both extensions are shown together, so a Molang error in pack
+JSON shows twice. **Molang: Let Molang handle Molang diagnostics** (offered
+the first time it happens, and as a quick fix) adds Blockception's own
+`diagnostic.disable.<code>=true` lines for its Molang diagnostics to the
+project's `.mcattributes`: an ordinary edit, which undo takes back. Its other
+diagnostics, and its Molang lints this extension has no equivalent of, stay. Semantic highlighting cannot
 be shared, so in JSON this extension leaves it to Blockception while that is
 installed, and it leaves completion inside JSON to Blockception while
 Blockception's own JSON completion is on. Both are settings:

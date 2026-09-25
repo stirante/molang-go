@@ -57,6 +57,11 @@
         "title": "Minify",
         "category": "Molang",
         "enablement": "editorLangId == molang || editorLangId == bc-minecraft-molang"
+      },
+      {
+        "command": "molang.blockception.silenceDuplicates",
+        "title": "Let Molang handle Molang diagnostics",
+        "category": "Molang"
       }
     ],
     "menus": {
@@ -64,6 +69,10 @@
         {
           "command": "molang.minify",
           "when": "editorLangId == molang || editorLangId == bc-minecraft-molang"
+        },
+        {
+          "command": "molang.blockception.silenceDuplicates",
+          "when": "workspaceFolderCount > 0"
         }
       ]
     },

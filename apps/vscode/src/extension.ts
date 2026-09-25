@@ -1,13 +1,16 @@
-// The extension: starts the language server and adds the one command the
-// protocol has no request for. All language features are the server's.
+// The extension: starts the language server and adds what the protocol has
+// no request for -- minifying, and the settlement with Blockception, which
+// needs the workspace's files and other extensions' settings. All language
+// features are the server's.
 
 import * as vscode from 'vscode';
 import { LanguageClient, TransportKind, type LanguageClientOptions, type ServerOptions } from 'vscode-languageclient/node';
-import { blockceptionState } from './client/blockception';
+import { blockceptionState, registerBlockceptionCoexistence } from './client/blockception';
 
 let client: LanguageClient | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
+  const offerSilencing = registerBlockceptionCoexistence(context);
   const module = context.asAbsolutePath('dist/server.js');
   const serverOptions: ServerOptions = {
     run: { module, transport: TransportKind.ipc },
@@ -24,6 +27,12 @@ export async function activate(context: vscode.ExtensionContext) {
       { language: 'jsonc' },
     ],
     synchronize: { configurationSection: 'molang' },
+    middleware: {
+      handleDiagnostics(uri, diagnostics, next) {
+        if (uri.path.toLowerCase().endsWith('.json')) offerSilencing(uri, diagnostics.length);
+        next(uri, diagnostics);
+      },
+    },
     initializationOptions: {
       settings: vscode.workspace.getConfiguration().get('molang'),
       environment: blockceptionState(),

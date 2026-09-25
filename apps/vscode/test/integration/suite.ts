@@ -248,3 +248,25 @@ test('shows parameter names when they are turned on', async () => {
     await config.update('inlayHints.parameterNames', undefined, vscode.ConfigurationTarget.Global);
   }
 });
+
+test("writes Blockception's switches into .mcattributes, once, as an edit that can be undone", async () => {
+  const folder = vscode.workspace.workspaceFolders![0].uri;
+  const file = vscode.Uri.joinPath(folder, '.mcattributes');
+  await vscode.workspace.fs.writeFile(file, new TextEncoder().encode('foo=bar\n'));
+  try {
+    const added = await vscode.commands.executeCommand<number>('molang.blockception.silenceDuplicates', folder);
+    assert.ok(added > 10, `added ${added}`);
+    const doc = await vscode.workspace.openTextDocument(file);
+    const text = doc.getText();
+    assert.ok(text.startsWith('foo=bar\ndiagnostic.disable.molang.'), text);
+    assert.ok(!doc.isDirty, 'not saved');
+    assert.equal(await vscode.commands.executeCommand<number>('molang.blockception.silenceDuplicates', folder), 0);
+    assert.equal(doc.getText(), text);
+    await vscode.window.showTextDocument(doc);
+    await vscode.commands.executeCommand('undo');
+    assert.equal(doc.getText(), 'foo=bar\n');
+    await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+  } finally {
+    await vscode.workspace.fs.delete(file);
+  }
+});
