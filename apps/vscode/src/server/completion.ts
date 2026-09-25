@@ -213,7 +213,7 @@ export function completionItems(input: CompletionInput): CompletionItem[] {
  * one, in its query set if it has one. As the bridge decides it, so what is
  * offered is what then passes.
  */
-function resolvable(f: CatalogueFunction, options: AnalyzeOptions | undefined): boolean {
+export function resolvable(f: CatalogueFunction, options: AnalyzeOptions | undefined): boolean {
   const allowed = options?.allowedQueries;
   if (allowed?.length) {
     return allowed.some((q) => q.replace(/^(query|q)\./, '').toLowerCase() === f.name.toLowerCase());

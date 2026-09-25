@@ -129,3 +129,54 @@ export function overlapsSpans(spans: readonly Span[], start: number, end: number
   }
   return false;
 }
+
+/** Something about a .molang file itself, beyond the Molang in it. */
+export interface FileFinding extends Span {
+  severity: 'error' | 'warning' | 'information' | 'hint';
+  code: string;
+  message: string;
+}
+
+export const COMMENT_SPACE = 'comment-space';
+export const BYTE_ORDER_MARK = 'byte-order-mark';
+
+/**
+ * What goes wrong with a .molang file on its way to the game.
+ *
+ * jsonte, which is what turns .molang files into pack JSON, strips a
+ * comment only when it starts with `# ` -- a hash and a space. Every tool
+ * here reads `#note` as a comment too, but jsonte leaves it in, and the game
+ * then refuses the expression. `#{` is a template, not a comment.
+ *
+ * A byte order mark is invisible in the editor, which takes it off when it
+ * reads the file (withByteOrderMark says the file on disk has one) or shows
+ * it as the first character. jsonte's loadText copies it into the JSON it
+ * builds, where it is the first character of the expression, and the game
+ * refuses that expression -- in the case this was learnt from, in every
+ * entity that used it, badly enough to hang the client on world load.
+ */
+export function fileFindings(text: string, withByteOrderMark = false): FileFinding[] {
+  const out: FileFinding[] = [];
+  if (withByteOrderMark && !text.startsWith('\uFEFF')) {
+    out.push({
+      start: 0,
+      end: 0,
+      severity: 'warning',
+      code: BYTE_ORDER_MARK,
+      message:
+        'The file is saved with a byte order mark. jsonte copies it into the JSON it builds, and the game refuses the expression it starts. Save it as UTF-8 without one.',
+    });
+  }
+  for (const c of stripMolangFile(text).comments) {
+    const next = text[c.start + 1];
+    if (next === ' ') continue;
+    out.push({
+      start: c.start,
+      end: Math.min(c.end, c.start + 1),
+      severity: 'warning',
+      code: COMMENT_SPACE,
+      message: "jsonte removes only comments that start with '# ', so this one would reach the game. Add a space after the #.",
+    });
+  }
+  return out;
+}

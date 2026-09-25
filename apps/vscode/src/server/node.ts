@@ -7,8 +7,9 @@
 // the protocol stream.
 
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { open, readFile } from 'node:fs/promises';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createConnection, ProposedFeatures, TextDocuments } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { MolangBridge } from './bridge';
@@ -39,6 +40,17 @@ startServer({
     return existsSync(file) ? readFile(file, 'utf8') : undefined;
   },
   uptime: () => performance.now(),
+  hasByteOrderMark: async (uri) => {
+    if (!uri.startsWith('file:')) return false;
+    const file = await open(fileURLToPath(uri), 'r');
+    try {
+      const head = Buffer.alloc(3);
+      const { bytesRead } = await file.read(head, 0, 3, 0);
+      return bytesRead === 3 && head[0] === 0xef && head[1] === 0xbb && head[2] === 0xbf;
+    } finally {
+      await file.close();
+    }
+  },
 });
 
 documents.listen(connection);

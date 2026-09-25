@@ -19,8 +19,17 @@ the words its content log would use.
 - **Completion** of namespaces, query and math functions with their
   signatures, the variables and temps the file already uses, and what can
   follow `->`.
+- **Quick fixes**: a deprecated query's replacement; for a query that does not
+  resolve, the nearest names the field can use; `a.` to `array.`, `m.` to
+  `math.` and other namespace slips; a missing final `;`.
 - **Hover** for queries and math functions, and for variables: where the file
-  writes them and how often it reads them.
+  writes them and reads them -- in JSON, in which fields.
+- **Go to definition, find references and rename** for `variable.*` and
+  `temp.*`. In JSON a variable is one symbol across the file's fields (set in
+  `scripts/initialize`, read in `scripts/animate`); a temp belongs to its one
+  expression; `q.parent->v.x` is another entity's and is left alone.
+- **Parameter names** as inlay hints in query and math calls, off by default
+  (`molang.inlayHints.parameterNames`).
 - **Signature help** inside query and math calls.
 - **Semantic highlighting**, and a TextMate grammar for `.molang` files.
 - **Formatting** of `.molang` files, and a **Molang: Minify** command.
@@ -33,6 +42,11 @@ Molang has no comments, so the convention the ecosystem's tools share applies:
 not a comment; it is left for jsonte and read as a value. Files the
 Blockception extension claims (language `bc-minecraft-molang`) get the same
 features.
+
+jsonte removes only comments that start with `# `, a hash and a space; a
+`#note` would reach the game, so it is a warning with a fix. A file saved with
+a byte order mark is a warning too: jsonte copies the mark into the JSON it
+builds, and the game refuses the expression it starts.
 
 Formatting and minifying print the file from its syntax tree, which keeps no
 comments, so a file with comments or templates is left as it is.
@@ -64,6 +78,7 @@ Blockception's own JSON completion is on. Both are settings:
 | `molang.json.enabled` | Molang features inside JSON files. |
 | `molang.json.completion` | `auto`, `on` or `off`. |
 | `molang.json.semanticTokens` | `auto`, `on` or `off`. |
+| `molang.inlayHints.parameterNames` | Parameter names before call arguments. |
 
 ## Building
 

@@ -3,12 +3,12 @@
 // module and the catalogue) come from the entry point, so a browser entry can
 // supply them from fetch() instead of the file system.
 
-import type { Connection, InitializeResult, TextDocuments } from 'vscode-languageserver';
+import { ErrorCodes, ResponseError, type Connection, type InitializeResult, type TextDocuments } from 'vscode-languageserver';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { MolangEngine } from './bridge';
 import { Catalogue } from './catalogue';
 import { builtinPaths, JsonPathProvider, type PathCatalogue } from './embedding';
-import { MolangFileProvider } from './regions';
+import { MOLANG_LANGUAGE_IDS, MolangFileProvider } from './regions';
 import { TOKEN_MODIFIERS, TOKEN_TYPES } from './semantic';
 import { MolangService, defaultSettings, type Environment, type Settings } from './service';
 
@@ -26,6 +26,12 @@ export interface ServerHost {
   loadPaths(): Promise<string | undefined>;
   /** Milliseconds since the server process started, for the startup log. */
   uptime(): number;
+  /**
+   * Whether the file behind uri starts with a UTF-8 byte order mark. The
+   * editor takes the mark off when it reads the file, so the document's
+   * text cannot say. Absent where there is no file system to ask.
+   */
+  hasByteOrderMark?(uri: string): Promise<boolean>;
 }
 
 /** The client's settings, as the molang configuration section. */
@@ -33,6 +39,7 @@ interface ClientSettings {
   catalogue?: { path?: string };
   diagnostics?: { unknownQueries?: Settings['unknownQueries'] };
   json?: Partial<Settings['json']>;
+  inlayHints?: Partial<Settings['inlayHints']>;
 }
 
 export interface InitializationOptions {
@@ -60,11 +67,13 @@ export function startServer(host: ServerHost) {
   let cataloguePath = '';
   let environment: Environment = { blockceptionActive: false, blockceptionJsonCompletion: false };
   let canRefreshTokens = false;
+  let canRefreshHints = false;
 
   const applySettings = (s: ClientSettings | undefined) => {
     settings = {
       unknownQueries: s?.diagnostics?.unknownQueries ?? defaultSettings.unknownQueries,
       json: { ...defaultSettings.json, ...(s?.json ?? {}) },
+      inlayHints: { ...defaultSettings.inlayHints, ...(s?.inlayHints ?? {}) },
     };
     const path = s?.catalogue?.path ?? '';
     const reload = path !== cataloguePath;
@@ -110,6 +119,7 @@ export function startServer(host: ServerHost) {
     applySettings(init.settings);
     if (init.environment) environment = init.environment;
     canRefreshTokens = !!params.capabilities.workspace?.semanticTokens?.refreshSupport;
+    canRefreshHints = !!params.capabilities.workspace?.inlayHint?.refreshSupport;
     service = (async () => {
       const t0 = host.uptime();
       const engine = await host.loadEngine();
@@ -133,6 +143,11 @@ export function startServer(host: ServerHost) {
         semanticTokensProvider: { legend: { tokenTypes: TOKEN_TYPES, tokenModifiers: TOKEN_MODIFIERS }, full: true },
         documentSymbolProvider: true,
         documentFormattingProvider: true,
+        codeActionProvider: { codeActionKinds: ['quickfix'] },
+        definitionProvider: true,
+        referencesProvider: true,
+        renameProvider: { prepareProvider: true },
+        inlayHintProvider: true,
       },
       serverInfo: { name: 'molang' },
     };
@@ -148,9 +163,19 @@ export function startServer(host: ServerHost) {
       setTimeout(async () => {
         pending.delete(doc.uri);
         const s = await service!;
-        const current = documents.get(doc.uri);
+        let current = documents.get(doc.uri);
         if (!current || !s.handles(current)) return;
-        connection.sendDiagnostics({ uri: current.uri, version: current.version, diagnostics: s.diagnostics(current) });
+        const byteOrderMark = MOLANG_LANGUAGE_IDS.includes(current.languageId)
+          ? await host.hasByteOrderMark?.(current.uri).catch(() => false)
+          : false;
+        // The document may have moved on while the file was read.
+        current = documents.get(doc.uri);
+        if (!current) return;
+        connection.sendDiagnostics({
+          uri: current.uri,
+          version: current.version,
+          diagnostics: s.diagnostics(current, { byteOrderMark }),
+        });
       }, delay),
     );
   };
@@ -161,12 +186,15 @@ export function startServer(host: ServerHost) {
     s.invalidate();
     for (const doc of documents.all()) validate(doc, 0);
     if (canRefreshTokens) connection.languages.semanticTokens.refresh();
+    if (canRefreshHints) connection.languages.inlayHint.refresh();
   };
 
   // A document just opened is checked at once; only edits wait for a pause.
   const opened = new Set<string>();
   documents.onDidOpen((e) => opened.add(e.document.uri));
   documents.onDidChangeContent((e) => validate(e.document, opened.delete(e.document.uri) ? 0 : 150));
+  // A file's encoding changes on save, not on edit.
+  documents.onDidSave((e) => validate(e.document, 0));
   documents.onDidClose(async (e) => {
     clearTimeout(pending.get(e.document.uri));
     (await service)?.invalidate(e.document.uri);
@@ -221,6 +249,24 @@ export function startServer(host: ServerHost) {
       return r;
     }),
   );
+  connection.onCodeAction((p) =>
+    withDoc(p.textDocument.uri, [], (s, doc) => s.codeActions(doc, p.context.diagnostics)),
+  );
+  connection.onDefinition((p) => withDoc(p.textDocument.uri, [], (s, doc) => s.definition(doc, doc.offsetAt(p.position))));
+  connection.onReferences((p) =>
+    withDoc(p.textDocument.uri, [], (s, doc) =>
+      s.references(doc, doc.offsetAt(p.position), p.context.includeDeclaration),
+    ),
+  );
+  connection.onPrepareRename((p) =>
+    withDoc(p.textDocument.uri, null, (s, doc) => s.prepareRename(doc, doc.offsetAt(p.position))),
+  );
+  connection.onRenameRequest(async (p) => {
+    const r = await withDoc(p.textDocument.uri, null, (s, doc) => s.rename(doc, doc.offsetAt(p.position), p.newName));
+    if (r && 'error' in r) throw new ResponseError(ErrorCodes.InvalidRequest, r.error as string);
+    return r;
+  });
+  connection.languages.inlayHint.on((p) => withDoc(p.textDocument.uri, [], (s, doc) => s.inlayHints(doc, p.range)));
   connection.onRequest(PrintRequest, (p: PrintParams): Promise<PrintResponse> =>
     withDoc<PrintResponse>(p.uri, { error: 'Not a Molang document.' }, (s, doc) => s.print(doc, p.how)),
   );
