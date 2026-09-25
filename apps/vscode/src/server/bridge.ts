@@ -86,6 +86,32 @@ export interface PrintResult {
   error?: string;
 }
 
+/** formatSource's options. See cmd/molang-wasm/main.go. */
+export interface FormatOptions {
+  /** 'layout' (several lines, comments kept; the default), 'oneLine' or 'minify'. */
+  style?: 'layout' | 'oneLine' | 'minify';
+  indentSize?: number;
+  useTabs?: boolean;
+  lineWidth?: number;
+  /** `#` to the end of a line is a comment. */
+  comments?: boolean;
+  /** jsonte's `#{ ... }` is a template, kept as written. */
+  templates?: boolean;
+  optionalSemicolons?: boolean;
+  /** UTF-16 offsets: format only the top-level statements this touches. */
+  rangeStart?: number;
+  rangeEnd?: number;
+}
+
+/** text replaces [start, end) of the source, in UTF-16 offsets. */
+export interface FormatSourceResult {
+  ok: boolean;
+  text: string;
+  start: number;
+  end: number;
+  error?: string;
+}
+
 export interface CatalogueSummary {
   ok: boolean;
   error?: string;
@@ -113,6 +139,7 @@ export interface MolangEngine {
   analyze(source: string, options?: AnalyzeOptions): AnalyzeResult;
   format(source: string, options?: AnalyzeOptions): PrintResult;
   minify(source: string, options?: AnalyzeOptions): PrintResult;
+  formatSource(source: string, options?: FormatOptions): FormatSourceResult;
 }
 
 interface RawBridge {
@@ -121,6 +148,7 @@ interface RawBridge {
   analyze(source: string, options: string): string;
   format(source: string, options: string): string;
   minify(source: string, options: string): string;
+  formatSource(source: string, options: string): string;
 }
 
 declare const Go: new () => {
@@ -172,6 +200,10 @@ export class MolangBridge implements MolangEngine {
 
   minify(source: string, options: AnalyzeOptions = {}): PrintResult {
     return parse(this.raw.minify(source, JSON.stringify(options)));
+  }
+
+  formatSource(source: string, options: FormatOptions = {}): FormatSourceResult {
+    return parse(this.raw.formatSource(source, JSON.stringify(options)));
   }
 }
 

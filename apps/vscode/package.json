@@ -1,7 +1,7 @@
 {
   "name": "molang",
   "displayName": "Molang",
-  "description": "Molang language support for Minecraft Bedrock: diagnostics in the game's own words, completion, hover, signature help, formatting and minifying, in .molang files and in animation controller JSON.",
+  "description": "Molang language support for Minecraft Bedrock: diagnostics in the game's own words, completion, hover, signature help, formatting that keeps comments, and minifying, in .molang files and in animation controller JSON.",
   "version": "0.1.0",
   "publisher": "stirante",
   "license": "MIT",
@@ -87,6 +87,21 @@
           ],
           "default": "default",
           "markdownDescription": "Severity for a query name that does not resolve where it is written: not in the catalogue, or not one the field can name. `default` is an error, as the game refuses to load the expression."
+        },
+        "molang.format.indentSize": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "default": null,
+          "minimum": 1,
+          "markdownDescription": "Spaces per indentation level when formatting `.molang` files. `null` follows the editor's own indentation settings, tabs included."
+        },
+        "molang.format.lineWidth": {
+          "type": "integer",
+          "default": 100,
+          "minimum": 20,
+          "markdownDescription": "The line width formatting keeps `.molang` files to where it can: a longer conditional, chain of operators or argument list is broken over several lines."
         },
         "molang.json.enabled": {
           "type": "boolean",

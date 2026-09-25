@@ -23,7 +23,11 @@ the words its content log would use.
   writes them and how often it reads them.
 - **Signature help** inside query and math calls.
 - **Semantic highlighting**, and a TextMate grammar for `.molang` files.
-- **Formatting** of `.molang` files, and a **Molang: Minify** command.
+- **Formatting** of `.molang` files, whole or a selection: a statement per
+  line, blocks indented, long conditionals and chains of operators broken
+  over lines, comments and blank lines kept. A **Molang: Minify** command.
+- **Format Molang in this string** and **Minify Molang in this string**, code
+  actions on a Molang string in pack JSON, which stays on one line.
 - **Outline** of the variables a `.molang` file uses.
 
 ## `.molang` files
@@ -34,8 +38,14 @@ not a comment; it is left for jsonte and read as a value. Files the
 Blockception extension claims (language `bc-minecraft-molang`) get the same
 features.
 
-Formatting and minifying print the file from its syntax tree, which keeps no
-comments, so a file with comments or templates is left as it is.
+Formatting keeps both. A comment stays with the statement it was written
+against: on its own line before it, at the end of its line, or before a
+block's closing brace. One written inside a statement, between the arms of a
+conditional say, is moved to before that statement, since the formatter
+chooses where a statement breaks. Templates are kept exactly as written; one
+that stands where neither a value nor a name could leaves the file
+unformatted. Minifying keeps templates but refuses a file with comments, as a
+single line has nowhere to put them.
 
 ## Molang in JSON
 
@@ -61,6 +71,8 @@ Blockception's own JSON completion is on. Both are settings:
 | --- | --- |
 | `molang.catalogue.path` | A `catalogue.json` to use instead of the shipped one. |
 | `molang.diagnostics.unknownQueries` | Severity for a query that does not resolve. |
+| `molang.format.indentSize` | Spaces per level when formatting; unset follows the editor. |
+| `molang.format.lineWidth` | The line width formatting keeps to where it can (100). |
 | `molang.json.enabled` | Molang features inside JSON files. |
 | `molang.json.completion` | `auto`, `on` or `off`. |
 | `molang.json.semanticTokens` | `auto`, `on` or `off`. |

@@ -5,23 +5,26 @@
 
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import {
+  CodeActionKind,
   DiagnosticSeverity,
   DiagnosticTag,
   MarkupKind,
   Range,
   SymbolKind,
   TextEdit,
+  type CodeAction,
   type CompletionItem,
   type Diagnostic,
   type DocumentSymbol,
   type Hover,
   type SignatureHelp,
 } from 'vscode-languageserver-types';
-import type { AnalyzeOptions, AnalyzeResult, BridgeRef, CanonicalNamespace, MolangEngine } from './bridge';
+import type { AnalyzeOptions, AnalyzeResult, BridgeRef, CanonicalNamespace, FormatOptions, MolangEngine } from './bridge';
 import { argRange, entryDocs, functionDocs, signatureLabel, type Catalogue } from './catalogue';
 import { completionContext, completionItems, type KnownName } from './completion';
 import { JSON_LANGUAGE_IDS } from './embedding';
-import { inSpans, overlapsSpans } from './molangFile';
+import { decodeJsonString } from './jsonString';
+import { inSpans, overlapsSpans, stripMolangFile } from './molangFile';
 import { MOLANG_LANGUAGE_IDS, type MolangRegion, type MolangRegionProvider } from './regions';
 import { encodeTokens, type HostToken } from './semantic';
 import { findCall } from './signature';
@@ -31,11 +34,14 @@ export type Toggle = 'auto' | 'on' | 'off';
 export interface Settings {
   unknownQueries: 'default' | 'error' | 'warning' | 'information' | 'hint' | 'off';
   json: { enabled: boolean; completion: Toggle; semanticTokens: Toggle };
+  /** indentSize null follows the editor's tab size and tabs setting. */
+  format: { indentSize: number | null; lineWidth: number };
 }
 
 export const defaultSettings: Settings = {
   unknownQueries: 'default',
   json: { enabled: true, completion: 'auto', semanticTokens: 'auto' },
+  format: { indentSize: null, lineWidth: 100 },
 };
 
 /**
@@ -359,34 +365,102 @@ export class MolangService {
     return out;
   }
 
-  /**
-   * The whole .molang document printed by printer.Format or printer.Minify.
-   * The printer works from the tree, which has no comments and no
-   * templates, so a document with either is refused rather than silently
-   * stripped of them.
-   */
-  print(doc: TextDocument, how: 'format' | 'minify'): { text: string } | { error: string } {
-    if (!MOLANG_LANGUAGE_IDS.includes(doc.languageId)) return { error: 'Only .molang documents can be printed.' };
-    const a = this.analyze(doc);
-    const region = a?.regions[0]?.region;
-    if (!region) return { error: 'Nothing to print.' };
-    if (region.inert.length) {
-      return { error: `This file has comments or templates, which ${how === 'format' ? 'formatting' : 'minifying'} would remove.` };
-    }
-    if (!region.text.trim()) return { error: 'The file is empty.' };
-    const r = how === 'format' ? this.engine.format(region.text, region.options) : this.engine.minify(region.text, region.options);
-    if (!r.ok || r.text === undefined) return { error: `The file does not parse: ${r.error ?? 'unknown error'}` };
-    // Keep a final newline if the file had one.
-    const text = /\r?\n$/.test(doc.getText()) ? r.text + '\n' : r.text;
-    return { text };
+  /** The formatting options for a .molang document, from the editor's and ours. */
+  private layout(editor?: EditorFormatting): FormatOptions {
+    const indent = this.settings.format.indentSize ?? editor?.tabSize ?? 4;
+    return {
+      indentSize: indent,
+      useTabs: editor ? !editor.insertSpaces && this.settings.format.indentSize == null : false,
+      lineWidth: this.settings.format.lineWidth,
+      comments: true,
+      templates: true,
+    };
   }
 
-  formatEdits(doc: TextDocument): TextEdit[] | { error: string } {
-    const r = this.print(doc, 'format');
+  /**
+   * The whole .molang document formatted over several lines, comments and
+   * templates kept, or minified. Minifying has nowhere to put a comment, so
+   * a file with one is refused rather than stripped of it.
+   */
+  print(doc: TextDocument, how: 'format' | 'minify', editor?: EditorFormatting): { text: string } | { error: string } {
+    if (!MOLANG_LANGUAGE_IDS.includes(doc.languageId)) return { error: 'Only .molang documents can be printed.' };
+    const text = doc.getText();
+    if (!stripMolangFile(text).code.trim()) return { error: 'The file has no Molang.' };
+    if (how === 'minify' && stripMolangFile(text).comments.length) {
+      return { error: 'This file has comments, which minifying would remove.' };
+    }
+    const r = this.engine.formatSource(text, { ...this.layout(editor), style: how === 'format' ? 'layout' : 'minify' });
+    if (!r.ok) return { error: `The file does not parse: ${r.error ?? 'unknown error'}` };
+    // Keep a final newline if the file had one.
+    return { text: /\r?\n$/.test(text) ? r.text + '\n' : r.text };
+  }
+
+  formatEdits(doc: TextDocument, editor?: EditorFormatting): TextEdit[] | { error: string } {
+    // JSON is the JSON formatter's; its Molang has the code actions.
+    if (!MOLANG_LANGUAGE_IDS.includes(doc.languageId)) return [];
+    const r = this.print(doc, 'format', editor);
     if ('error' in r) return r;
     if (r.text === doc.getText()) return [];
     return [TextEdit.replace(Range.create(doc.positionAt(0), doc.positionAt(doc.getText().length)), r.text)];
   }
+
+  /**
+   * Formats the top-level statements of a .molang document that range
+   * touches, each whole, with their comments.
+   */
+  rangeFormatEdits(doc: TextDocument, range: Range, editor?: EditorFormatting): TextEdit[] | { error: string } {
+    if (!MOLANG_LANGUAGE_IDS.includes(doc.languageId)) return [];
+    const text = doc.getText();
+    if (!stripMolangFile(text).code.trim()) return [];
+    const r = this.engine.formatSource(text, {
+      ...this.layout(editor),
+      rangeStart: doc.offsetAt(range.start),
+      rangeEnd: doc.offsetAt(range.end),
+    });
+    if (!r.ok) return { error: `The file does not parse: ${r.error ?? 'unknown error'}` };
+    if (r.start === r.end || text.slice(r.start, r.end) === r.text) return [];
+    return [TextEdit.replace(Range.create(doc.positionAt(r.start), doc.positionAt(r.end)), r.text)];
+  }
+
+  /**
+   * "Format Molang in this string" and "Minify Molang in this string" for the
+   * JSON string at range. Molang in JSON is one line, so it is formatted in
+   * the one-line style. A region joined from several strings -- an array
+   * the game reads as one program -- has no single string to rewrite, and
+   * gets neither.
+   */
+  codeActions(doc: TextDocument, range: Range): CodeAction[] {
+    if (!JSON_LANGUAGE_IDS.includes(doc.languageId)) return [];
+    const a = this.analyze(doc);
+    const hit = a && this.locate(a, doc.offsetAt(range.start));
+    if (!hit) return [];
+    const { region } = hit.ra;
+    if (doc.offsetAt(range.end) > region.hostEnd) return [];
+    const raw = doc.getText().slice(region.hostStart, region.hostEnd);
+    if (decodeJsonString(raw).value !== region.text) return [];
+    const out: CodeAction[] = [];
+    for (const [style, title] of [
+      ['oneLine', 'Format Molang in this string'],
+      ['minify', 'Minify Molang in this string'],
+    ] as const) {
+      const r = this.engine.formatSource(region.text, {
+        style,
+        templates: true,
+        optionalSemicolons: region.options.optionalSemicolons,
+      });
+      if (!r.ok || r.text === region.text) continue;
+      const escaped = JSON.stringify(r.text).slice(1, -1);
+      const edit = TextEdit.replace(Range.create(doc.positionAt(region.hostStart), doc.positionAt(region.hostEnd)), escaped);
+      out.push({ title, kind: CodeActionKind.RefactorRewrite, edit: { changes: { [doc.uri]: [edit] } } });
+    }
+    return out;
+  }
+}
+
+/** The editor's own formatting options, as a formatting request carries them. */
+export interface EditorFormatting {
+  tabSize: number;
+  insertSpaces: boolean;
 }
 
 function code(s: string): string {

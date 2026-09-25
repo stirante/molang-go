@@ -1,0 +1,5 @@
+# How fast the legs move.
+v.speed = q.is_baby ? 1.5 : 1; # babies are quicker
+
+
+v.#{name} = q.x ? { v.b = #{value}; } : 0;
