@@ -28,20 +28,37 @@ import (
 // expression in an unknown context, which is the strictest reading that
 // makes no assumption about where it is written.
 type Options struct {
-	// Context is the catalogue context id the expression is written in
-	// ("client_entity", "animation", ...). It decides which queries are
-	// available and, through the catalogue, which operations are refused.
-	// Empty means unknown: nothing is reported that depends on it.
+	// QuerySet is the query set the field resolves names against:
+	// "default", "tags" (item and block descriptor tag expressions) or
+	// "world_gen" (features, feature rules, biome surface adjustments).
+	// Empty means unknown, and any set's queries are accepted.
+	QuerySet string `json:"querySet,omitempty"`
+
+	// AllowedQueries, when not empty, is the only queries the field
+	// resolves, in place of a query set. Four fields have one: an entity
+	// property's default (had_component_group), a block permutation's
+	// condition and bone_visibility (block_state), and a set_property event
+	// response (has_property, property).
+	AllowedQueries []string `json:"allowedQueries,omitempty"`
+
+	// Version is the version the file's Molang is read at -- its
+	// format_version or its pack's min_engine_version, depending on the
+	// file type. It decides the catalogue's version gates. Empty skips them.
+	Version string `json:"version,omitempty"`
+
+	// Context is the catalogue context id the expression is written in. It
+	// selects the context's own restrictions from the catalogue (see
+	// Context.DisallowedOps). Empty means unknown.
 	Context string `json:"context,omitempty"`
 
 	// Restrict names one of the engine's own operation restrictions for
 	// fields that refuse side effects, independent of the catalogue:
 	//
 	//	"no_side_effects"           assignment refused (entity property
-	//	                            queries)
+	//	                            defaults)
 	//	"no_side_effects_or_random" assignment, math.random and
 	//	                            math.random_integer refused (block
-	//	                            descriptions, bone_visibility)
+	//	                            permutation conditions, bone_visibility)
 	//
 	// See molang.SideEffectOps for why die_roll is in neither.
 	Restrict string `json:"restrict,omitempty"`
@@ -54,11 +71,17 @@ type Options struct {
 	// that are not whole expressions. See lexer.Extensions.
 	OptionalSemicolons bool `json:"optionalSemicolons,omitempty"`
 
-	// UnknownQueries is the severity for a query the catalogue does not
-	// list: "error", "warning", "information", "hint" or "off". Empty
-	// means "warning", or "hint" when the catalogue is marked partial --
-	// a name missing from a list known to be incomplete is a question,
-	// not a finding.
+	// UnknownQueries is the severity for a query name that does not
+	// resolve: one the catalogue does not list, one outside the field's
+	// query set or allow-list, one gated out by Version. "error",
+	// "warning", "information", "hint" or "off"; empty means "warning".
+	//
+	// A warning and not an error, though the game logs an error and the
+	// expression does not load, because this package does not itself
+	// model which names resolve -- the verdict rests on the catalogue and
+	// on the host's account of the field. A catalogue marked partial turns
+	// a name it lacks into a hint: missing from a list known to be
+	// incomplete is a question, not a finding.
 	UnknownQueries string `json:"unknownQueries,omitempty"`
 }
 
@@ -79,7 +102,8 @@ type Diagnostic struct {
 	Severity  string `json:"severity"` // error, warning, information, hint
 	// Code says which check fired: syntax (the parser, in the game's own
 	// wording), unknown-math, math-arity, math-not-called, unknown-query,
-	// query-arity, query-deprecated, query-context, op-not-allowed, compile.
+	// query-arity, query-deprecated, query-context, query-version,
+	// op-not-allowed, compile.
 	Code    string   `json:"code"`
 	Message string   `json:"message"`
 	Tags    []string `json:"tags,omitempty"` // "deprecated"
@@ -173,7 +197,11 @@ func (a *Analyzer) Analyze(src string, opts Options) Result {
 		}
 	}
 
-	res.Diagnostics = d.out
+	// Lists are never null in the JSON, so a JavaScript caller can iterate
+	// them without checking.
+	if d.out != nil {
+		res.Diagnostics = d.out
+	}
 	res.OK = true
 	for _, x := range res.Diagnostics {
 		if x.Severity == "error" {
@@ -251,20 +279,23 @@ func (d *diagnoser) tokenRange(pos int) (int, int) {
 }
 
 // checkRefs reports what is wrong with the names themselves: math functions
-// the game does not have or called with the wrong count, and queries the
-// catalogue does not list, calls it says are the wrong shape, or names it
-// says do not belong in this context.
+// the game does not have or called with the wrong count, and queries that do
+// not resolve where they are written, or are called with a count the
+// catalogue says is wrong.
 //
 // Argument counts are only checked when the source parsed. In a source that
 // does not, a count is as likely to be counting the mistake as the author's
-// intent, and the syntax error already says where to look.
+// intent, and the syntax error already says where to look. And a wrong count
+// for a query is a warning: the game does not check it when the expression
+// loads -- the query itself complains, or not, when it runs.
 func (a *Analyzer) checkRefs(d *diagnoser, refs []ref, opts Options, parsed bool) {
-	unknownSev := opts.UnknownQueries
-	if unknownSev == "" {
-		unknownSev = "warning"
-		if a.Catalogue != nil && a.Catalogue.Partial {
-			unknownSev = "hint"
-		}
+	unresolvedSev := opts.UnknownQueries
+	if unresolvedSev == "" {
+		unresolvedSev = "warning"
+	}
+	allowed := map[string]bool{}
+	for _, q := range opts.AllowedQueries {
+		allowed[strings.ToLower(strings.TrimPrefix(strings.TrimPrefix(q, "query."), "q."))] = true
 	}
 	for i := range refs {
 		r := &refs[i]
@@ -272,49 +303,97 @@ func (a *Analyzer) checkRefs(d *diagnoser, refs []ref, opts Options, parsed bool
 		case ast.Math:
 			a.checkMath(d, r, parsed)
 		case ast.Query:
-			if !a.Catalogue.hasQueries() {
-				continue
+			a.checkQuery(d, r, opts, parsed, allowed, unresolvedSev)
+		}
+	}
+}
+
+// unresolvedMessage is the game's content-log wording for a query name it
+// cannot resolve, whatever the reason; why is added after it.
+func unresolvedMessage(name, why string) string {
+	msg := fmt.Sprintf("Failed to resolve query query.%s. Either the query does not exist or it is not supported in this context.", name)
+	if why != "" {
+		msg += " (" + why + ")"
+	}
+	return msg
+}
+
+func (a *Analyzer) checkQuery(d *diagnoser, r *ref, opts Options, parsed bool, allowed map[string]bool, sev string) {
+	report := func(code, msg string) {
+		if sev != "off" {
+			d.add(r.start, r.end, sev, code, msg)
+		}
+	}
+	name := r.lowerName()
+	// Inside a query's arguments the field's own rules do not apply; see
+	// scanRefs.
+	if len(allowed) > 0 && !r.inQueryArg && !allowed[name] {
+		report("query-context", unresolvedMessage(r.name, "this field allows only "+strings.Join(opts.AllowedQueries, ", ")))
+		return
+	}
+	if !a.Catalogue.hasQueries() {
+		return
+	}
+	f := a.Catalogue.query(r.name)
+	if f == nil {
+		if a.Catalogue.Partial {
+			if opts.UnknownQueries == "" || opts.UnknownQueries == "hint" {
+				d.add(r.start, r.end, "hint", "unknown-query", fmt.Sprintf("query.%s is not in the catalogue, which is incomplete", r.name))
+			} else {
+				report("unknown-query", fmt.Sprintf("query.%s is not in the catalogue", r.name))
 			}
-			f := a.Catalogue.query(r.name)
-			if f == nil {
-				if unknownSev != "off" {
-					d.add(r.start, r.end, unknownSev, "unknown-query",
-						fmt.Sprintf("query.%s is not a known query function", r.name))
-				}
-				continue
+			return
+		}
+		report("unknown-query", unresolvedMessage(r.name, ""))
+		return
+	}
+	// The set the name must be in: the field's own, or none when an
+	// allow-list (checked above) replaces it -- except in a query's
+	// arguments, which the game reads as default-set Molang wherever they
+	// are.
+	set := opts.QuerySet
+	switch {
+	case r.inQueryArg && (set != "" || len(allowed) > 0):
+		set = SetDefault
+	case len(allowed) > 0:
+		set = ""
+	}
+	if fs := f.querySet(); set != "" && fs != set {
+		report("query-context", unresolvedMessage(r.name, fmt.Sprintf("query.%s belongs to %s expressions", r.name, querySetNames[fs])))
+		return
+	}
+	if !f.resolvesAt(opts.Version) {
+		why := ""
+		if g := f.VersionGate; g.Until != "" && compareVersions(opts.Version, g.Until) >= 0 {
+			why = fmt.Sprintf("query.%s was removed in %s", r.name, g.Until)
+		} else {
+			why = fmt.Sprintf("query.%s was added in %s", r.name, g.Since)
+		}
+		report("query-version", unresolvedMessage(r.name, why))
+		return
+	}
+	if f.Deprecated != nil {
+		msg := fmt.Sprintf("query.%s is deprecated", r.name)
+		if f.Deprecated.Replacement != nil && *f.Deprecated.Replacement != "" {
+			msg += "; use " + *f.Deprecated.Replacement + " instead"
+		}
+		if f.Deprecated.Note != "" {
+			msg += ". " + f.Deprecated.Note
+		}
+		d.add(r.start, r.end, "hint", "query-deprecated", msg, "deprecated")
+	}
+	if parsed {
+		n := 0
+		if r.call {
+			n = r.argc
+		}
+		if min, max := f.ArgRange(); n >= 0 && (n < min || (max >= 0 && n > max)) {
+			end := r.end
+			if r.call && r.callEnd > 0 {
+				end = r.callEnd
 			}
-			if f.Deprecated != nil {
-				msg := fmt.Sprintf("query.%s is deprecated", r.name)
-				if f.Deprecated.Replacement != nil && *f.Deprecated.Replacement != "" {
-					msg += "; use " + *f.Deprecated.Replacement + " instead"
-				}
-				if f.Deprecated.Note != "" {
-					msg += ". " + f.Deprecated.Note
-				}
-				d.add(r.start, r.end, "hint", "query-deprecated", msg, "deprecated")
-			}
-			if !f.available(opts.Context) {
-				name := opts.Context
-				if c := a.Catalogue.context(opts.Context); c != nil && c.Name != "" {
-					name = c.Name
-				}
-				d.add(r.start, r.end, "warning", "query-context",
-					fmt.Sprintf("query.%s is not available in %s", r.name, name))
-			}
-			if parsed {
-				n := 0
-				if r.call {
-					n = r.argc
-				}
-				if min, max := f.ArgRange(); n >= 0 && (n < min || (max >= 0 && n > max)) {
-					end := r.end
-					if r.call && r.callEnd > 0 {
-						end = r.callEnd
-					}
-					d.add(r.start, end, "warning", "query-arity",
-						fmt.Sprintf("query.%s takes %s, found %d", r.name, argCount(min, max), n))
-				}
-			}
+			d.add(r.start, end, "warning", "query-arity",
+				fmt.Sprintf("query.%s takes %s, found %d", r.name, argCount(min, max), n))
 		}
 	}
 }

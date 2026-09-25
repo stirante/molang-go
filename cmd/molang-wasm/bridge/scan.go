@@ -28,7 +28,9 @@ type ref struct {
 	call       bool // followed by an argument list
 	argc       int  // arguments in that list; -1 when the list is not closed
 	callEnd    int  // after the ')' of a closed list
+	closeTok   int  // token index of that ')'
 	arrow      bool // the right side of `->`
+	inQueryArg bool // inside the argument list of a query call
 	firstTok   int  // token index of the namespace
 	lastTok    int  // token index of the last member segment
 }
@@ -91,7 +93,7 @@ func scanRefs(src string, toks []token.Token) []ref {
 		switch {
 		case next.Kind == token.LParen && ns != ast.Array:
 			r.call = true
-			r.argc, r.callEnd = countArgs(src, toks, j+1)
+			r.argc, r.callEnd, r.closeTok = countArgs(src, toks, j+1)
 		case next.Kind == token.Assign:
 			r.write = true
 		}
@@ -102,29 +104,42 @@ func scanRefs(src string, toks []token.Token) []ref {
 		refs = append(refs, r)
 		i = j
 	}
+	// A query's arguments are read afresh by the game, with the default
+	// query set and none of the field's restrictions on which queries may be
+	// named, so a name inside one is checked as an entity expression would
+	// be, whatever field it is written in.
+	for k := range refs {
+		c := &refs[k]
+		if c.ns != ast.Query || !c.call || c.argc < 0 {
+			continue
+		}
+		for m := k + 1; m < len(refs) && refs[m].firstTok < c.closeTok; m++ {
+			refs[m].inQueryArg = true
+		}
+	}
 	return refs
 }
 
 // countArgs counts the arguments of the list opening at toks[open], and
-// returns the offset just past its ')'. A list that is never closed, or is
-// closed by the wrong bracket, has no count: -1.
-func countArgs(src string, toks []token.Token, open int) (int, int) {
+// returns the offset just past its ')' and that token's index. A list that
+// is never closed, or is closed by the wrong bracket, has no count: -1.
+func countArgs(src string, toks []token.Token, open int) (int, int, int) {
 	depth, commas, seen := 0, 0, false
 	for k := open + 1; k < len(toks); k++ {
 		switch toks[k].Kind {
 		case token.EOF:
-			return -1, 0
+			return -1, 0, 0
 		case token.LParen, token.LBracket, token.LBrace:
 			depth++
 		case token.RParen, token.RBracket, token.RBrace:
 			if depth == 0 {
 				if toks[k].Kind != token.RParen {
-					return -1, 0
+					return -1, 0, 0
 				}
 				if !seen {
-					return 0, tokEnd(src, toks[k])
+					return 0, tokEnd(src, toks[k]), k
 				}
-				return commas + 1, tokEnd(src, toks[k])
+				return commas + 1, tokEnd(src, toks[k]), k
 			}
 			depth--
 		case token.Comma:
@@ -134,7 +149,7 @@ func countArgs(src string, toks []token.Token, open int) (int, int) {
 		}
 		seen = true
 	}
-	return -1, 0
+	return -1, 0, 0
 }
 
 // Semantic token types and modifiers. The names are VS Code's standard ones,

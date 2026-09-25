@@ -31,7 +31,11 @@ const testCatalogue = `{
     {"name": "get_name", "args": [{"name": "a", "optional": true}, {"name": "b", "optional": true}]},
     {"name": "any_of", "args": [{"name": "x"}], "variadic": true},
     {"name": "old_thing", "args": [], "deprecated": {"replacement": "query.new_thing", "note": ""}},
-    {"name": "client_only", "args": [], "contexts": ["client_entity"]}
+    {"name": "block_state", "args": [{"name": "name"}]},
+    {"name": "noise", "args": [], "variadic": true, "querySet": "world_gen"},
+    {"name": "any_tag", "args": [], "variadic": true, "contexts": ["tags"]},
+    {"name": "removed_thing", "versionGate": {"until": "1.20.40"}},
+    {"name": "new_thing", "versionGate": {"since": "1.21.0"}}
   ],
   "contexts": {"client_entity": {"name": "client entity"}, "block_description": "block description"}
 }`
@@ -174,6 +178,8 @@ func TestMathChecks(t *testing.T) {
 
 func TestQueryChecks(t *testing.T) {
 	a := analyzer(t)
+	unresolved := func(name, why string) string { return unresolvedMessage(name, why) }
+	blockField := Options{AllowedQueries: []string{"query.block_state"}}
 	cases := []struct {
 		src      string
 		opts     Options
@@ -183,9 +189,13 @@ func TestQueryChecks(t *testing.T) {
 	}{
 		{"q.is_baby", Options{}, "", "", ""},
 		{"Query.IS_BABY", Options{}, "", "", ""},
-		{"q.nope", Options{}, "unknown-query", "warning", "query.nope is not a known query function"},
+		{"q.nope", Options{}, "unknown-query", "warning",
+			"Failed to resolve query query.nope. Either the query does not exist or it is not supported in this context."},
 		{"q.nope", Options{UnknownQueries: "error"}, "unknown-query", "error", ""},
 		{"q.nope", Options{UnknownQueries: "off"}, "", "", ""},
+		{"v.e->q.nope", Options{}, "unknown-query", "warning", ""},
+
+		// Arity is a warning, and only what the catalogue says.
 		{"q.position", Options{}, "query-arity", "warning", "query.position takes 1 argument, found 0"},
 		{"q.position(0)", Options{}, "", "", ""},
 		{"q.position(0, 1)", Options{}, "query-arity", "warning", "query.position takes 1 argument, found 2"},
@@ -194,21 +204,44 @@ func TestQueryChecks(t *testing.T) {
 		{"q.any_of(1, 2, 3, 4)", Options{}, "", "", ""},
 		{"q.any_of()", Options{}, "query-arity", "warning", "query.any_of takes at least 1 argument, found 0"},
 		{"q.old_thing", Options{}, "query-deprecated", "hint", "query.old_thing is deprecated; use query.new_thing instead"},
-		{"q.client_only", Options{}, "", "", ""},
-		{"q.client_only", Options{Context: "client_entity"}, "", "", ""},
-		{"q.client_only", Options{Context: "block_description"}, "query-context", "warning", "query.client_only is not available in block description"},
-		{"v.e->q.nope", Options{}, "unknown-query", "warning", ""},
+
+		// Each field resolves its own query set, and an unknown field any.
+		{"q.noise(1, 2)", Options{}, "", "", ""},
+		{"q.noise(1, 2)", Options{QuerySet: "world_gen"}, "", "", ""},
+		{"q.noise(1, 2)", Options{QuerySet: "default"}, "query-context", "warning",
+			unresolved("noise", "query.noise belongs to world generation expressions")},
+		{"q.is_baby", Options{QuerySet: "world_gen"}, "query-context", "warning",
+			unresolved("is_baby", "query.is_baby belongs to entity, block and item expressions")},
+		{"q.any_tag('a')", Options{QuerySet: "tags"}, "", "", ""},
+		{"q.any_tag('a')", Options{QuerySet: "default"}, "query-context", "warning", ""},
+
+		// A fixed allow-list replaces the set -- but not inside a query's
+		// arguments, which the game reads as default-set Molang.
+		{"q.block_state('a') == 1", blockField, "", "", ""},
+		{"q.is_baby", blockField, "query-context", "warning",
+			unresolved("is_baby", "this field allows only query.block_state")},
+		{"q.block_state(q.is_baby)", blockField, "", "", ""},
+		{"q.block_state(q.noise(1))", blockField, "query-context", "warning", ""},
+		{"q.noise(q.is_baby)", Options{QuerySet: "world_gen"}, "", "", ""},
+
+		// Version gates apply only when the version is known.
+		{"q.removed_thing", Options{}, "", "", ""},
+		{"q.removed_thing", Options{Version: "1.20.30"}, "", "", ""},
+		{"q.removed_thing", Options{Version: "1.20.40"}, "query-version", "warning",
+			unresolved("removed_thing", "query.removed_thing was removed in 1.20.40")},
+		{"q.new_thing", Options{Version: "1.20"}, "query-version", "warning", ""},
+		{"q.new_thing", Options{Version: "1.21.0.3"}, "", "", ""},
 	}
 	for _, c := range cases {
 		r := a.Analyze(c.src, c.opts)
 		if c.want == "" {
 			if len(r.Diagnostics) != 0 {
-				t.Errorf("%q: %v", c.src, r.Diagnostics)
+				t.Errorf("%q %+v: %v", c.src, c.opts, r.Diagnostics)
 			}
 			continue
 		}
 		if len(r.Diagnostics) != 1 {
-			t.Errorf("%q: %v", c.src, r.Diagnostics)
+			t.Errorf("%q %+v: %v", c.src, c.opts, r.Diagnostics)
 			continue
 		}
 		d := r.Diagnostics[0]
@@ -220,6 +253,11 @@ func TestQueryChecks(t *testing.T) {
 		}
 	}
 
+	// A fixed allow-list needs no catalogue.
+	if r := (&Analyzer{}).Analyze("q.is_baby", blockField); len(r.Diagnostics) != 1 {
+		t.Errorf("allow-list without a catalogue: %v", r.Diagnostics)
+	}
+
 	// A partial catalogue does not know enough to call a name unknown.
 	p := &Analyzer{}
 	p.SetCatalogue(`{"partial": true, "queries": [{"name": "is_baby"}]}`)
@@ -229,6 +267,20 @@ func TestQueryChecks(t *testing.T) {
 	// And with no catalogue there is nothing to say about queries at all.
 	if r := (&Analyzer{}).Analyze("q.whatever(1, 2)", Options{}); len(r.Diagnostics) != 0 {
 		t.Errorf("no catalogue: %v", r.Diagnostics)
+	}
+}
+
+func TestCompareVersions(t *testing.T) {
+	for _, c := range []struct {
+		a, b string
+		want int
+	}{
+		{"1.20.40", "1.20.40", 0}, {"1.20", "1.20.0", 0}, {"1.20.30", "1.20.40", -1},
+		{"1.21.0", "1.20.50", 1}, {"1.9.0", "1.10.0", -1}, {"1.26.60.22", "1.26.60", 1},
+	} {
+		if got := compareVersions(c.a, c.b); got != c.want {
+			t.Errorf("compareVersions(%q, %q) = %d, want %d", c.a, c.b, got, c.want)
+		}
 	}
 }
 
@@ -452,6 +504,15 @@ func TestCall(t *testing.T) {
 	for _, args := range []string{`["1"]`, `["1", null]`, `["1", ""]`, `["1", "{\"restrict\":\"no_side_effects\"}"]`} {
 		if out := a.Call("analyze", args); !strings.Contains(out, `"ok":true`) {
 			t.Errorf("%s: %s", args, out)
+		}
+	}
+	// JavaScript iterates these lists without checking for null first.
+	for _, src := range []string{"1", "", "v.a = ;"} {
+		out := a.Call("analyze", `[`+strconv.Quote(src)+`]`)
+		for _, list := range []string{"diagnostics", "tokens", "refs", "symbols"} {
+			if strings.Contains(out, `"`+list+`":null`) {
+				t.Errorf("%q: %s is null: %s", src, list, out)
+			}
 		}
 	}
 	var p PrintResult

@@ -36,12 +36,17 @@
 // optionsJSON may be "" or "null" for the defaults:
 //
 //	{
-//	  "context": "client_entity",       // catalogue context id; "" = unknown
+//	  "querySet": "default",            // or "tags", "world_gen": the set the field resolves; "" = any
+//	  "allowedQueries": ["query.block_state"],  // a field's fixed allow-list, in place of the set
+//	  "version": "1.20.40",             // the version the file is read at, for version gates; "" = skip
+//	  "context": "client_entity",       // catalogue context id, for its restrictions; "" = unknown
 //	  "restrict": "no_side_effects",    // or "no_side_effects_or_random"; the engine's own restrictions
 //	  "disallowedOps": ["Assignment '='"],  // more operations to refuse
 //	  "optionalSemicolons": false,      // fragments: lift the game's ';' rules
-//	  "unknownQueries": "warning"       // severity of a query the catalogue lacks; "off" to skip
+//	  "unknownQueries": "warning"       // severity of a name that does not resolve; "off" to skip
 //	}
+//
+// See bridge.Options for what each means.
 //
 // The Result:
 //
@@ -63,9 +68,9 @@
 // diagnostics: severity is error, warning, information or hint. code is
 // "syntax" for the parser -- every syntax error, not just the first, each in
 // the game's own wording -- or one of unknown-math, math-arity,
-// math-not-called, unknown-query, query-arity, query-deprecated,
-// query-context, op-not-allowed, compile. An empty or all-whitespace source
-// has none.
+// math-not-called, unknown-query, query-context (outside the field's query
+// set or allow-list), query-version, query-arity, query-deprecated,
+// op-not-allowed, compile. An empty or all-whitespace source has none.
 //
 // tokens: semantic tokens with VS Code's standard type names (namespace,
 // function, variable, property, keyword, number, string, operator) and

@@ -312,7 +312,7 @@
         {
           "name": "index",
           "type": "number",
-          "optional": false
+          "optional": true
         },
         {
           "name": "names",
@@ -321,7 +321,7 @@
         }
       ],
       "variadic": true,
-      "minArgs": 3,
+      "minArgs": 2,
       "maxArgs": -1,
       "returns": "number",
       "deprecated": null,
@@ -330,7 +330,9 @@
       "contexts": null,
       "clientOnly": false,
       "description": "1 when the item in the given slot and index is any of the listed item names, otherwise 0.",
-      "notes": []
+      "notes": [
+        "The slot index may be left out: q.is_item_name_any('slot.weapon.mainhand', 'minecraft:bow') is written that way in vanilla."
+      ]
     }
   ],
   "math": [

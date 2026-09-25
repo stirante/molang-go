@@ -46,15 +46,55 @@ type Function struct {
 	MaxArgs      *int            `json:"maxArgs"` // -1 is unbounded
 	Returns      string          `json:"returns"`
 	Deprecated   *Deprecation    `json:"deprecated"`
-	VersionGate  json.RawMessage `json:"versionGate"`
+	VersionGate  *VersionGate    `json:"versionGate"`
 	Experimental json.RawMessage `json:"experimental"`
-	// Contexts lists the context ids the function is available in. Absent
-	// or null means everywhere; an empty list means nowhere, which is
-	// taken at its word.
+	// QuerySet is the query set the function is registered in: "default",
+	// "tags" or "world_gen". Every query is in exactly one, and a field
+	// resolves the queries of its own set and no other, so a worldgen
+	// expression cannot name query.is_baby and an entity one cannot name
+	// query.noise. Absent means default -- see querySet.
+	QuerySet string `json:"querySet"`
+	// Contexts is where the function is available. It is read only as a
+	// fallback for QuerySet, when it names exactly one query set.
 	Contexts    *[]string `json:"contexts"`
 	ClientOnly  bool      `json:"clientOnly"`
 	Description string    `json:"description"`
 	Notes       []string  `json:"notes"`
+}
+
+// VersionGate is the range of versions a function resolves in: from Since,
+// and below Until. Either may be empty. A file read at a version outside it
+// fails to resolve the name, as if it did not exist.
+type VersionGate struct {
+	Since string `json:"since"`
+	Until string `json:"until"`
+}
+
+// The query sets. Which one a field resolves against is the host's
+// knowledge of the field; see Options.QuerySet.
+const (
+	SetDefault  = "default"
+	SetTags     = "tags"
+	SetWorldGen = "world_gen"
+)
+
+var querySetNames = map[string]string{
+	SetDefault:  "entity, block and item",
+	SetTags:     "tag",
+	SetWorldGen: "world generation",
+}
+
+// querySet is the set f belongs to.
+func (f *Function) querySet() string {
+	if f.QuerySet != "" {
+		return f.QuerySet
+	}
+	if f.Contexts != nil && len(*f.Contexts) == 1 {
+		if _, ok := querySetNames[(*f.Contexts)[0]]; ok {
+			return (*f.Contexts)[0]
+		}
+	}
+	return SetDefault
 }
 
 // Arg is one positional argument of a Function.
@@ -192,18 +232,41 @@ func (f *Function) ArgRange() (min, max int) {
 	return min, max
 }
 
-// available reports whether f may be named in context id. An unknown
-// context, or a function with no context list, says nothing either way.
-func (f *Function) available(id string) bool {
-	if id == "" || f.Contexts == nil {
+// resolvesAt reports whether f resolves in a file read at version v. An
+// empty version, or no gate, says nothing either way.
+func (f *Function) resolvesAt(v string) bool {
+	if v == "" || f.VersionGate == nil {
 		return true
 	}
-	for _, c := range *f.Contexts {
-		if c == id {
-			return true
+	if g := f.VersionGate.Since; g != "" && compareVersions(v, g) < 0 {
+		return false
+	}
+	if g := f.VersionGate.Until; g != "" && compareVersions(v, g) >= 0 {
+		return false
+	}
+	return true
+}
+
+// compareVersions compares dotted versions numerically, part by part; a
+// missing part is 0, so 1.20 == 1.20.0.
+func compareVersions(a, b string) int {
+	pa, pb := strings.Split(a, "."), strings.Split(b, ".")
+	for i := 0; i < len(pa) || i < len(pb); i++ {
+		var x, y int
+		if i < len(pa) {
+			fmt.Sscanf(pa[i], "%d", &x)
+		}
+		if i < len(pb) {
+			fmt.Sscanf(pb[i], "%d", &y)
+		}
+		if x != y {
+			if x < y {
+				return -1
+			}
+			return 1
 		}
 	}
-	return false
+	return 0
 }
 
 // opsByName resolves the spellings Context.DisallowedOps accepts.
