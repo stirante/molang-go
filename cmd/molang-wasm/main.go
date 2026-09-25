@@ -93,6 +93,27 @@
 // printer.Format and printer.Minify. A source that does not parse is not
 // printed; error is the first syntax error's message. Only
 // optionalSemicolons is read from the options.
+//
+//	molangBridge.formatSource(source, formatOptionsJSON) -> {ok, text, start, end, error?}
+//
+// printer.FormatSource: formatting a file rather than an expression, which
+// can keep comments, blank lines and jsonte templates. formatOptionsJSON may
+// be "" or "null" for the defaults:
+//
+//	{
+//	  "style": "layout",        // over several lines; or "oneLine" (format's), "minify"
+//	  "indentSize": 4,          // width of one level; 0 = 4
+//	  "useTabs": false,
+//	  "lineWidth": 100,         // 0 = 100
+//	  "comments": true,         // '#' to the end of the line; kept by "layout" only
+//	  "templates": true,        // jsonte's #{ ... }, kept as written
+//	  "optionalSemicolons": false,
+//	  "rangeStart": 10, "rangeEnd": 42  // "layout" only: format the top-level statements this touches
+//	}
+//
+// text replaces [start, end) of source, in UTF-16 offsets: the whole source,
+// or with a range the statements it touches. With nothing to format in the
+// range, text is "" and start == end.
 package main
 
 import (
@@ -108,7 +129,7 @@ func main() {
 	a := &bridge.Analyzer{}
 	api := js.Global().Get("Object").New()
 	api.Set("version", apiVersion)
-	for _, method := range []string{"setCatalogue", "analyze", "format", "minify"} {
+	for _, method := range []string{"setCatalogue", "analyze", "format", "minify", "formatSource"} {
 		method := method
 		api.Set(method, js.FuncOf(func(_ js.Value, args []js.Value) any {
 			// The arguments go to Call as one JSON array of strings, so the

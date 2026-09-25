@@ -792,6 +792,21 @@ func (a *Analyzer) Call(method, args string) (out string) {
 		default:
 			result = Minify(src, o)
 		}
+	case "formatSource":
+		var o FormatOptions
+		if len(raw) > 1 && string(raw[1]) != "null" {
+			b := []byte(raw[1])
+			var s string
+			if json.Unmarshal(b, &s) == nil {
+				b = []byte(s)
+			}
+			if len(b) > 0 {
+				if err := json.Unmarshal(b, &o); err != nil {
+					return errorJSON(err.Error())
+				}
+			}
+		}
+		result = FormatSource(src, o)
 	default:
 		return errorJSON("unknown method " + method)
 	}
