@@ -1,0 +1,210 @@
+{
+  "$comment": "Hand-curated corrections to the schema-derived Molang path catalogue. Merged last by apps/vscode/tools/build-molang-paths.mjs; notMolang and knownParseGaps are read by apps/vscode/tools/check-molang-paths.mjs. Every entry says why.",
+
+  "add": [
+    {
+      "rootKey": "minecraft:client_entity",
+      "path": "description/render_controllers/[*]/*",
+      "kind": "boolean", "accepts": ["string", "boolean"],
+      "reason": "Render-controller conditions ({\"controller.render.x\": \"query.is_powered\"}); no Blockception marker. Many vanilla client entities."
+    },
+    {
+      "rootKeys": ["minecraft:client_entity", "minecraft:attachable"],
+      "path": "description/scripts/variables/*", "target": "key",
+      "kind": "variable_name",
+      "reason": "Keys of scripts.variables are the variables being declared public; the values (\"public\") are not Molang."
+    },
+    {
+      "rootKey": "minecraft:client_entity",
+      "paths": ["description/scripts/scaleX", "description/scripts/scaleY", "description/scripts/scaleZ"],
+      "kind": "number", "accepts": ["string", "number"],
+      "reason": "Spelled with a capital axis letter in the vanilla magma cube; the schemas only list scalex/scaley/scalez."
+    },
+    {
+      "rootKey": "minecraft:client_entity",
+      "paths": ["description/scripts/initialize/[*]", "description/scripts/pre_animation/[*]"],
+      "kind": "general", "joined": true,
+      "reason": "The game joins the array into one program: vanilla husk/zombie/piglin pre_animation opens a block in one element (\"(v.melee_spear_equipped) ? {\") and closes it several elements later (\"};\")."
+    },
+    {
+      "rootKey": "minecraft:attachable",
+      "paths": ["description/scripts/initialize/[*]", "description/scripts/pre_animation/[*]"],
+      "kind": "general", "joined": true,
+      "reason": "Same scripts block as the client entity: statements, joined into one program."
+    },
+    {
+      "rootKey": "minecraft:attachable",
+      "path": "description/scripts/animate/[*]/*",
+      "kind": "number", "accepts": ["string", "number"],
+      "reason": "Same scripts block as the client entity (vanilla bow: \"wield_first_person_pull\": \"query.main_hand_item_use_duration > 0.0f && c.is_first_person\"); Blockception's attachable schema lacks it."
+    },
+    {
+      "rootKey": "minecraft:attachable",
+      "paths": ["description/scripts/scalex", "description/scripts/scaley", "description/scripts/scalez"],
+      "kind": "number", "accepts": ["string", "number"],
+      "reason": "Same scripts block as the client entity."
+    },
+    {
+      "rootKey": "minecraft:attachable",
+      "paths": ["description/scripts/should_update_bones_and_effects_offscreen", "description/scripts/should_update_effects_offscreen"],
+      "kind": "boolean", "accepts": ["string", "boolean"],
+      "reason": "Same scripts block as the client entity."
+    },
+    {
+      "rootKey": "minecraft:attachable",
+      "path": "description/render_controllers/[*]/*",
+      "kind": "boolean", "accepts": ["string", "boolean"],
+      "reason": "Same render-controller condition form as the client entity."
+    },
+    {
+      "rootKey": "minecraft:attachable",
+      "path": "description/item/*",
+      "kind": "boolean", "accepts": ["string", "boolean"],
+      "reason": "Keys are item identifiers, values the condition under which this attachable applies (vanilla armour: \"query.owner_identifier == 'minecraft:player'\")."
+    },
+    {
+      "rootKey": "render_controllers",
+      "path": "*/materials/[*]/*",
+      "kind": "render_resource_ref",
+      "reason": "Keys are bone-name globs, values pick the material (\"variable.is_enchanted ? Material.enchanted : Material.default\", \"Array.materials[query.is_invisible]\"); no Blockception marker."
+    },
+    {
+      "rootKey": "render_controllers",
+      "path": "*/part_visibility/[*]/*",
+      "kind": "boolean", "accepts": ["string", "boolean"],
+      "reason": "Keys are bone-name globs, values the visibility condition; the most common Molang field no schema marks (about 200 vanilla instances)."
+    },
+    {
+      "rootKey": "render_controllers",
+      "paths": ["*/arrays/textures/*/[*]", "*/arrays/materials/*/[*]", "*/arrays/geometries/*/[*]"],
+      "kind": "render_resource_ref",
+      "reason": "Array elements are resource references (Texture.x, Material.x, Geometry.x) that the geometry/materials/textures expressions index into."
+    },
+    {
+      "rootKey": "render_controllers",
+      "paths": ["*/arrays/textures/*", "*/arrays/materials/*", "*/arrays/geometries/*"], "target": "key",
+      "kind": "array_name",
+      "reason": "Keys declare the Array.x names the expressions refer to."
+    },
+    {
+      "rootKey": "animations",
+      "paths": ["*/bones/*/rotation/[*]/x", "*/bones/*/rotation/[*]/y", "*/bones/*/rotation/[*]/z"],
+      "kind": "animation", "accepts": ["string", "number"], "pack": "resource",
+      "reason": "Legacy per-axis rotation list, [{\"y\": \"180.0 - this\"}, {\"x\": \"query.body_x_rotation\"}], used by the vanilla squid; not in any schema."
+    },
+    {
+      "rootKey": "minecraft:entity",
+      "path": "description/scripts/animate/[*]/*",
+      "kind": "boolean", "accepts": ["string", "boolean"],
+      "reason": "BP entity animate conditions; Blockception types them as plain strings."
+    },
+    {
+      "rootKey": "minecraft:entity",
+      "path": "events/**/set_property/*",
+      "kind": "string_or_molang", "accepts": ["string", "number", "boolean"],
+      "reason": "set_property values are Molang for int/float/bool properties (vanilla creaking: \"math.clamp(query.property('minecraft:creaking_swaying_ticks') + 1, 0, 6)\"); for enum properties a plain value. Reached through nested sequence/randomize, hence **."
+    },
+    {
+      "rootKey": "minecraft:entity",
+      "path": "@components/minecraft:ambient_sound_interval/event_names/[*]/condition",
+      "kind": "boolean", "accepts": ["string"],
+      "reason": "Condition choosing the ambient sound (vanilla allay: \"query.is_using_item\"); Blockception types it as a plain string."
+    },
+    {
+      "rootKey": "minecraft:entity",
+      "paths": ["@components/minecraft:rideable/seats/lock_rider_rotation", "@components/minecraft:rideable/seats/[*]/lock_rider_rotation"],
+      "kind": "number", "accepts": ["string", "number"],
+      "reason": "Documented by Mojang as a number or Molang expression, like rotate_rider_by next to it."
+    },
+    {
+      "rootKey": "particle_effect",
+      "path": "curves/*", "target": "key",
+      "kind": "variable_name",
+      "reason": "Curve names are the variables the curve is read through (\"variable.shrink\")."
+    },
+    {
+      "rootKey": "particle_effect",
+      "paths": ["events/*/**/expression", "events/*/**/pre_effect_expression"],
+      "kind": "particle", "accepts": ["string", "number", "object"],
+      "reason": "Event nodes nest through sequence/randomize to any depth; Mojang's schema is recursive there, so the walk sees one level only."
+    },
+    {
+      "rootKey": "entity_sounds",
+      "path": "entities/*/variants/key",
+      "kind": "general",
+      "reason": "Sound-variant selector in sounds.json, evaluated on the entity and returning the variant name (\"query.is_baby ? 'baby' : query.property('minecraft:sound_variant')\"); no schema marks it."
+    },
+    {
+      "rootKey": "minecraft:conditional_list",
+      "path": "conditional_features/[*]/condition",
+      "kind": "worldgen",
+      "reason": "Condition choosing a feature, documented by Mojang as Molang; no Blockception marker."
+    }
+  ],
+
+  "patch": [
+    {
+      "rootKeys": ["minecraft:client_entity", "minecraft:attachable"],
+      "path": "description/scripts/parent_setup",
+      "set": { "kind": "general" },
+      "reason": "Statements run on the parent before it renders (they set variables); Blockception titles it Molang Number."
+    },
+    {
+      "rootKey": "minecraft:entity",
+      "path": "description/properties/*/default",
+      "set": { "kind": "string_or_molang" },
+      "reason": "An enum property's default is a plain value (\"unrolled\", \"default\"); int/float/bool defaults may be Molang."
+    },
+    {
+      "rootKey": "minecraft:entity",
+      "path": "@components/minecraft:anger_level/on_increase_sounds/[*]/condition",
+      "set": { "kind": "boolean" },
+      "reason": "A condition, though Mojang's schema types it as a general expression."
+    },
+    {
+      "rootKey": "animations",
+      "paths": ["*/particle_effects/*/pre_effect_script", "*/particle_effects/*/[*]/pre_effect_script"],
+      "set": { "kind": "general" },
+      "reason": "Runs statements on the spawned effect (sets its variables); not an animation value."
+    }
+  ],
+
+  "remove": [
+    {
+      "rootKey": "minecraft:client_entity",
+      "path": "description/scripts/variables/*",
+      "reason": "The values are access modifiers (\"public\"); the keys are the Molang names (added as target key)."
+    },
+    {
+      "rootKey": "particle_effect",
+      "path": "components/minecraft:emitter_lifetime_events/timeline/*",
+      "reason": "Timeline values are event names, not Molang (a description mentions Molang)."
+    }
+  ],
+
+  "notMolang": [
+    {
+      "rootKey": "minecraft:client_entity",
+      "path": "description/geometry/*",
+      "reason": "Geometry identifiers (\"geometry.agent\") bound to short names that render controllers reach as Geometry.<short name>. The dotted form looks like the geometry. namespace but is a resource id."
+    },
+    {
+      "rootKey": "minecraft:attachable",
+      "path": "description/geometry/*",
+      "reason": "Geometry identifiers, as for the client entity."
+    },
+    {
+      "rootKey": "minecraft:geometry",
+      "path": "[*]/description/identifier",
+      "reason": "The geometry's own identifier (\"geometry.allay\")."
+    }
+  ],
+
+  "knownParseGaps": [
+    {
+      "id": "null-coalescing-block",
+      "textRe": "\\?\\?\\s*\\{",
+      "reason": "`x ?? { ... };`: a brace block as the right operand of ??. Twelve vanilla particles default their script-supplied variables this way (\"variable.direction ?? { variable.direction.x = 0.0; ... };\"); molang-go refuses the brace after ?? (\"unexpected token {\"). A molang-go gap to investigate, not a catalogue error: the field is Molang."
+    }
+  ]
+}
