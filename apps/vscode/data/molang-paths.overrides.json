@@ -200,11 +200,5 @@
     }
   ],
 
-  "knownParseGaps": [
-    {
-      "id": "null-coalescing-block",
-      "textRe": "\\?\\?\\s*\\{",
-      "reason": "`x ?? { ... };`: a brace block as the right operand of ??. Twelve vanilla particles default their script-supplied variables this way (\"variable.direction ?? { variable.direction.x = 0.0; ... };\"); molang-go refuses the brace after ?? (\"unexpected token {\"). A molang-go gap to investigate, not a catalogue error: the field is Molang."
-    }
-  ]
+  "knownParseGaps": []
 }
