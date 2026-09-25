@@ -23,26 +23,35 @@ func NoiseFunc() eval.QueryFunc {
 	}
 }
 
-// BiomeTagFuncs returns the query.has_biome_tag/any_tag/all_tags QueryFuncs.
-// Molang has no string type — a call like query.has_biome_tag('forest')
-// arrives with 'forest' already reduced to its interned numeric id (see
-// eval.InternString) — so hasTag receives that raw numeric argument value
-// and decides membership; this package stays decoupled from any particular
-// tag-set representation.
+// BiomeTagFuncs returns the world_gen biome tag queries: query.has_biome_tag,
+// query.has_any_biome_tags and query.has_all_biome_tags. Molang has no string
+// type — a call like query.has_biome_tag('forest') arrives with 'forest'
+// already reduced to its interned numeric id (see eval.InternString) — so
+// hasTag receives that raw numeric argument value and decides membership;
+// this package stays decoupled from any particular tag-set representation.
+//
+//   - has_biome_tag takes one tag, and exactly 1, 3 or 4 arguments: (tag),
+//     (tag, x, z) and (tag, x, y, z). Any other count answers 0, two included.
+//     The positional forms ask about another block in the game; hasTag has no
+//     position, so here they ask about the same biome as the one-argument form.
+//   - has_any_biome_tags / has_all_biome_tags take any number of tags and
+//     always ask about the origin. With no tags at all both answer 0 — the
+//     game checks for an empty list before it looks at the biome.
+//
+// query.any_tag and query.all_tags are not here: they are the block and item
+// descriptor tag queries, a different query set that worldgen Molang does not
+// resolve.
 func BiomeTagFuncs(hasTag func(argValue float64) bool) map[string]eval.QueryFunc {
 	has := func(args []float64, _ *eval.Context) float64 {
-		if len(args) < 1 {
-			return 0
-		}
-		if hasTag(args[0]) {
-			return 1
+		switch len(args) {
+		case 1, 3, 4:
+			if hasTag(args[0]) {
+				return 1
+			}
 		}
 		return 0
 	}
 	any := func(args []float64, _ *eval.Context) float64 {
-		if len(args) < 1 {
-			return 0
-		}
 		for _, a := range args {
 			if hasTag(a) {
 				return 1
@@ -51,7 +60,7 @@ func BiomeTagFuncs(hasTag func(argValue float64) bool) map[string]eval.QueryFunc
 		return 0
 	}
 	all := func(args []float64, _ *eval.Context) float64 {
-		if len(args) < 1 {
+		if len(args) == 0 {
 			return 0
 		}
 		for _, a := range args {
@@ -62,9 +71,9 @@ func BiomeTagFuncs(hasTag func(argValue float64) bool) map[string]eval.QueryFunc
 		return 1
 	}
 	return map[string]eval.QueryFunc{
-		"has_biome_tag": has,
-		"any_tag":       any,
-		"all_tags":      all,
+		"has_biome_tag":      has,
+		"has_any_biome_tags": any,
+		"has_all_biome_tags": all,
 	}
 }
 
@@ -89,6 +98,31 @@ func HeightFuncs(src HeightSource) map[string]eval.QueryFunc {
 		"heightmap":       heightmap,
 		"above_top_solid": aboveTopSolid,
 	}
+}
+
+// QueryNames is the game's world_gen query set: every query worldgen Molang
+// (features, feature rules, biome surface adjustments) resolves, and nothing
+// else. The game resolves query names while it parses, against the set the
+// field allows, so a name outside this list is not a query that answers 0 —
+// the expression fails to parse. Register implements all six.
+var QueryNames = []string{
+	"above_top_solid",
+	"has_all_biome_tags",
+	"has_any_biome_tags",
+	"has_biome_tag",
+	"heightmap",
+	"noise",
+}
+
+// IsQuery reports whether query.<name> is in the world_gen set. name is the
+// member, lower-case, without the namespace.
+func IsQuery(name string) bool {
+	for _, n := range QueryNames {
+		if n == name {
+			return true
+		}
+	}
+	return false
 }
 
 // Register fills dst with every world_gen query this package implements.

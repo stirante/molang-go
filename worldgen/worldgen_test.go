@@ -35,11 +35,48 @@ func TestBiomeTagFuncs(t *testing.T) {
 	if got := fns["has_biome_tag"]([]float64{desertID}, nil); got != 0 {
 		t.Errorf("has_biome_tag(desert) = %v, want 0", got)
 	}
-	if got := fns["any_tag"]([]float64{desertID, forestID}, nil); got != 1 {
-		t.Errorf("any_tag(desert,forest) = %v, want 1", got)
+	if got := fns["has_any_biome_tags"]([]float64{desertID, forestID}, nil); got != 1 {
+		t.Errorf("has_any_biome_tags(desert,forest) = %v, want 1", got)
 	}
-	if got := fns["all_tags"]([]float64{desertID, forestID}, nil); got != 0 {
-		t.Errorf("all_tags(desert,forest) = %v, want 0", got)
+	if got := fns["has_all_biome_tags"]([]float64{desertID, forestID}, nil); got != 0 {
+		t.Errorf("has_all_biome_tags(desert,forest) = %v, want 0", got)
+	}
+	if got := fns["has_all_biome_tags"]([]float64{forestID, forestID}, nil); got != 1 {
+		t.Errorf("has_all_biome_tags(forest,forest) = %v, want 1", got)
+	}
+	// No tags: 0 for both, not the vacuous "all of nothing" 1.
+	if got := fns["has_all_biome_tags"](nil, nil); got != 0 {
+		t.Errorf("has_all_biome_tags() = %v, want 0", got)
+	}
+	if got := fns["has_any_biome_tags"](nil, nil); got != 0 {
+		t.Errorf("has_any_biome_tags() = %v, want 0", got)
+	}
+	// has_biome_tag: 1, 3 or 4 arguments; 2 is not a form it accepts.
+	for n, want := range map[int]float64{1: 1, 2: 0, 3: 1, 4: 1, 5: 0} {
+		args := make([]float64, n)
+		args[0] = forestID
+		if got := fns["has_biome_tag"](args, nil); got != want {
+			t.Errorf("has_biome_tag with %d arguments = %v, want %v", n, got, want)
+		}
+	}
+	// The descriptor tag queries belong to another query set.
+	for _, name := range []string{"any_tag", "all_tags"} {
+		if fns[name] != nil || worldgen.IsQuery(name) {
+			t.Errorf("%s is registered as a world_gen query", name)
+		}
+	}
+}
+
+func TestRegisterCoversQueryNames(t *testing.T) {
+	dst := map[string]eval.QueryFunc{}
+	worldgen.Register(dst, func(float64) bool { return false }, nil)
+	if len(dst) != len(worldgen.QueryNames) {
+		t.Fatalf("Register filled %d queries, QueryNames lists %d", len(dst), len(worldgen.QueryNames))
+	}
+	for _, name := range worldgen.QueryNames {
+		if dst[name] == nil || !worldgen.IsQuery(name) {
+			t.Errorf("query.%s is listed but not registered", name)
+		}
 	}
 }
 
