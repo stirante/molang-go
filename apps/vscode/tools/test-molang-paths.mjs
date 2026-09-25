@@ -54,7 +54,9 @@ if (!fs.existsSync(mojang)) {
     console.log('freshness: skipped (Blockception schemas not found; pass --blockception)');
   } else {
     for (const [name, file] of [['molang-paths.json', out], ['molang-paths.sources.md', src]]) {
-      const same = fs.readFileSync(file, 'utf8') === fs.readFileSync(path.join(dataDir, name), 'utf8');
+      // Compare modulo line endings: a checkout may carry CRLF.
+      const read = (f) => fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
+      const same = read(file) === read(path.join(dataDir, name));
       console.log(`freshness: ${name} ${same ? 'up to date' : 'STALE -- rerun build-molang-paths.mjs'}`);
       if (!same) failed = true;
     }
