@@ -44,6 +44,8 @@ async function diagnostics(doc: vscode.TextDocument, timeout = 20000): Promise<v
 }
 
 const at = (doc: vscode.TextDocument, needle: string, add = 0) => doc.positionAt(doc.getText().indexOf(needle) + add);
+/** Text with CRLF line ends read as LF, however the fixture was checked out. */
+const lf = (text: string) => text.replace(/\r\n/g, '\n');
 
 test('activates, and the server comes up', async () => {
   const t0 = Date.now();
@@ -99,14 +101,45 @@ test('formats a .molang file', async () => {
   const before = doc.getText();
   await vscode.commands.executeCommand('editor.action.formatDocument');
   assert.equal(
-    doc.getText(),
-    'variable.speed = query.is_baby ? 1 : 2; temp.x = math.clamp(variable.speed, 0, 1); return temp.x;\n',
+    lf(doc.getText()),
+    'variable.speed = query.is_baby ? 1 : 2;\ntemp.x = math.clamp(variable.speed, 0, 1);\nreturn temp.x;\n',
   );
   await vscode.commands.executeCommand('undo');
   assert.equal(doc.getText(), before);
 });
 
-test('does not format a file with comments, which the printer would drop', async () => {
+test('formats a .molang file with comments and templates, keeping them', async () => {
+  const doc = await open('commented.molang');
+  await vscode.commands.executeCommand('editor.action.formatDocument');
+  assert.equal(
+    lf(doc.getText()),
+    [
+      '# How fast the legs move.',
+      'variable.speed = query.is_baby ? 1.5 : 1; # babies are quicker',
+      '',
+      'variable.#{name} = query.x ? {',
+      '    variable.b = #{value};',
+      '} : 0;',
+      '',
+    ].join('\n'),
+  );
+  await vscode.commands.executeCommand('undo');
+});
+
+test('formats only the statements a selection touches', async () => {
+  const doc = await open('commented.molang');
+  const before = lf(doc.getText());
+  const editor = vscode.window.activeTextEditor!;
+  editor.selection = new vscode.Selection(at(doc, 'q.is_baby', 2), at(doc, 'q.is_baby', 2));
+  await vscode.commands.executeCommand('editor.action.formatSelection');
+  assert.equal(
+    lf(doc.getText()),
+    before.replace('v.speed = q.is_baby ? 1.5 : 1;', 'variable.speed = query.is_baby ? 1.5 : 1;'),
+  );
+  await vscode.commands.executeCommand('undo');
+});
+
+test('does not format a file that does not parse', async () => {
   const doc = await open('errors.molang');
   const before = doc.getText();
   await vscode.commands.executeCommand('editor.action.formatDocument');
@@ -116,7 +149,7 @@ test('does not format a file with comments, which the printer would drop', async
 test('minifies a .molang file', async () => {
   const doc = await open('clean.molang');
   await vscode.commands.executeCommand('molang.minify');
-  assert.equal(doc.getText(), 'v.speed=q.is_baby?1:2;t.x=math.clamp(v.speed,0,1);return t.x;\n');
+  assert.equal(lf(doc.getText()), 'v.speed=q.is_baby?1:2;t.x=math.clamp(v.speed,0,1);return t.x;\n');
   await vscode.commands.executeCommand('undo');
 });
 
@@ -128,6 +161,23 @@ test('reports Molang errors inside animation controller JSON, through escapes', 
     '; unexpected token ;',
     "math.nope unknown math function 'math.nope'",
   ]);
+});
+
+test('formats the Molang in one JSON string, on one line', async () => {
+  const doc = await open('test.animation_controllers.json');
+  // Once the server has read the document: a request made while it is
+  // still starting on it is cancelled.
+  await diagnostics(doc);
+  const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+    'vscode.executeCodeActionProvider',
+    doc.uri,
+    new vscode.Range(at(doc, 'q.is_moving', 2), at(doc, 'q.is_moving', 2)),
+  );
+  const format = actions.find((a) => a.title === 'Format Molang in this string');
+  assert.ok(format?.edit, actions.map((a) => a.title).join(', '));
+  await vscode.workspace.applyEdit(format.edit);
+  assert.ok(doc.getText().includes('{ "walk": "query.is_moving" }'), doc.getText());
+  await vscode.commands.executeCommand('undo');
 });
 
 test('completes inside a JSON string', async () => {

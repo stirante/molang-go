@@ -132,12 +132,44 @@ describe('.molang documents', () => {
     ]);
   });
 
-  it('formats and minifies, but not a file with comments', () => {
+  it('formats over several lines, keeping comments and templates', () => {
     const doc = molang('v.a=q.is_baby?1:2;\n');
     expect(service.print(doc, 'format')).toEqual({ text: 'variable.a = query.is_baby ? 1 : 2;\n' });
     expect(service.print(doc, 'minify')).toEqual({ text: 'v.a=q.is_baby?1:2;\n' });
-    expect(service.print(molang('v.a = 1; # keep me'), 'format')).toHaveProperty('error');
+    const commented = molang('# why\nv.a=1;  # keep me\n\n\nv.#{name}=q.x?{v.b=#{value};}:0;\n');
+    expect(service.print(commented, 'format')).toEqual({
+      text: '# why\nvariable.a = 1; # keep me\n\nvariable.#{name} = query.x ? {\n    variable.b = #{value};\n} : 0;\n',
+    });
+    // The editor's indentation, unless the setting names one.
+    expect(service.print(molang('loop(2,{v.a=1;});'), 'format', { tabSize: 2, insertSpaces: true })).toEqual({
+      text: 'loop(2, {\n  variable.a = 1;\n});',
+    });
+    expect(service.print(molang('loop(2,{v.a=1;});'), 'format', { tabSize: 4, insertSpaces: false })).toEqual({
+      text: 'loop(2, {\n\tvariable.a = 1;\n});',
+    });
+    // Minifying has nowhere to put a comment.
+    expect(service.print(commented, 'minify')).toHaveProperty('error');
     expect(service.print(molang('v.a = ;'), 'format')).toHaveProperty('error');
+  });
+
+  it('keeps to the line width setting', () => {
+    const before = service.settings;
+    try {
+      service.settings = { ...before, format: { indentSize: 2, lineWidth: 30 } };
+      expect(service.print(molang('v.x = q.v == 1 ? 10 : q.v == 2 ? 20 : 30;'), 'format')).toEqual({
+        text: 'variable.x = query.v == 1 ? 10\n  : query.v == 2 ? 20\n  : 30;',
+      });
+    } finally {
+      service.settings = before;
+    }
+  });
+
+  it('formats the statements a range touches, and nothing else', () => {
+    const text = 'v.a=1;\n# note\nv.b=2;   # b\nv.c=3;\n';
+    const doc = molang(text);
+    const at = doc.positionAt(text.indexOf('v.b') + 1);
+    const edits = service.rangeFormatEdits(doc, { start: at, end: at }) as { range: never; newText: string }[];
+    expect(edits.map((e) => [doc.getText(e.range), e.newText])).toEqual([['v.b=2;   # b', 'variable.b = 2; # b']]);
   });
 
   it('outlines the variables', () => {
@@ -151,6 +183,28 @@ describe('.molang documents', () => {
 });
 
 describe('Molang in animation controller JSON', () => {
+  it('formats and minifies the Molang in one string, on one line', () => {
+    const text = controller.replace('"q.is_moving"', '"q.is_moving && !q.is_baby"');
+    const doc = json(text);
+    const at = doc.positionAt(text.indexOf('q.is_moving') + 2);
+    const actions = service.codeActions(doc, { start: at, end: at });
+    const edit = (i: number) => actions[i].edit!.changes![doc.uri][0];
+    expect(actions.map((a) => a.title)).toEqual(['Format Molang in this string', 'Minify Molang in this string']);
+    expect([doc.getText(edit(0).range), edit(0).newText]).toEqual([
+      'q.is_moving && !q.is_baby',
+      'query.is_moving && !query.is_baby',
+    ]);
+    expect(edit(1).newText).toBe('q.is_moving&&!q.is_baby');
+    // Written back escaped.
+    const esc = doc.positionAt(text.indexOf('caf') + 1);
+    const [format] = service.codeActions(doc, { start: esc, end: esc });
+    expect(format.edit!.changes![doc.uri][0].newText).toBe(`variable.x == 'café \\"x\\"' && query.is_baby`);
+    // Nothing outside Molang.
+    const outside = doc.positionAt(text.indexOf('blend_transition'));
+    expect(service.codeActions(doc, { start: outside, end: outside })).toEqual([]);
+  });
+
+
   it('maps diagnostics back through JSON escapes', () => {
     const text = controller.replace('&& q.is_baby', '&& ;').replace('v.count = 0;', 'v.count = math.nope(1);');
     const doc = json(text);

@@ -35,11 +35,16 @@ the right character.
 
 ![A syntax error inside an animation controller's on_entry](media/json.png)
 
-Also: semantic highlighting, a grammar for `.molang` files, **formatting**
-of `.molang` files, a **Molang: Minify** command, an outline of the
-variables a file uses, and **Molang: Show Molang regions in this file**,
-which outlines and lists where the extension reads Molang in the open file
-and what found each string.
+**Formatting** of `.molang` files, whole or a selection: a statement per
+line, blocks indented, long conditionals and chains of operators broken
+over lines, comments and blank lines kept. In pack JSON, **Format Molang in
+this string** and **Minify Molang in this string** are code actions on a
+Molang string, which stays on one line.
+
+Also: semantic highlighting, a grammar for `.molang` files, a **Molang:
+Minify** command, an outline of the variables a file uses, and **Molang:
+Show Molang regions in this file**, which outlines and lists where the
+extension reads Molang in the open file and what found each string.
 
 ### Files it reads
 
@@ -95,8 +100,14 @@ Molang has no comments, so the convention the community's tools share
 applies: `#` starts a comment to the end of the line. `#{ ... }` is a jsonte
 template, not a comment; it is left for jsonte.
 
-Formatting and minifying rebuild the file from its syntax, which keeps no
-comments, so a file with comments or templates is left as it is.
+Formatting keeps both. A comment stays with the statement it was written
+against: on its own line before it, at the end of its line, or before a
+block's closing brace. One written inside a statement, between the arms of a
+conditional say, is moved to before that statement, since the formatter
+chooses where a statement breaks. Templates are kept exactly as written; one
+that stands where neither a value nor a name could leaves the file
+unformatted. Minifying keeps templates but refuses a file with comments, as a
+single line has nowhere to put them.
 
 ## With Blockception's extension
 
@@ -136,6 +147,8 @@ skipped, as an unreachable one is on the desktop.
 | `molang.catalogue.path` | A `catalogue.json` to use instead of the shipped one. |
 | `molang.diagnostics.unknownQueries` | Severity for a query that does not resolve; `default` is an error, as the game refuses the expression. |
 | `molang.versionSource` | `format_version` (the default) reads a pack file's Molang at its `format_version`; `ignore` skips the version checks. |
+| `molang.format.indentSize` | Spaces per level when formatting; unset follows the editor. |
+| `molang.format.lineWidth` | The line width formatting keeps to where it can (100). |
 | `molang.json.enabled` | Molang features inside JSON files. |
 | `molang.json.schemaDetection` | Also read the Molang JSON schemas mark. |
 | `molang.json.completion` | `auto`, `on` or `off`. |

@@ -600,3 +600,29 @@ func TestShippedCatalogue(t *testing.T) {
 func lexerTokens(src string) ([]token.Token, []*lexer.Error) {
 	return lexer.TokenizeAll(src, lexer.Extensions{})
 }
+
+func TestFormatSource(t *testing.T) {
+	src := "# é\nv.a=1;   # keep\nv.b=#{x};\n"
+	r := FormatSource(src, FormatOptions{Comments: true, Templates: true, IndentSize: 2})
+	if !r.OK || r.Text != "# é\nvariable.a = 1; # keep\nvariable.b = #{x};" || r.Start != 0 || r.End != len([]rune(src)) {
+		t.Errorf("whole: %+v", r)
+	}
+	// A range in UTF-16 units, after a character that is two bytes.
+	start := 6
+	r = FormatSource(src, FormatOptions{Comments: true, Templates: true, RangeStart: &start, RangeEnd: &start})
+	if !r.OK || r.Text != "variable.a = 1; # keep" || r.Start != 4 || r.End != 19 {
+		t.Errorf("range: %+v", r)
+	}
+	if r := FormatSource("v.a=1; # x", FormatOptions{Comments: true, Style: "oneLine"}); r.OK || r.Error == "" {
+		t.Errorf("one line with a comment: %+v", r)
+	}
+	if r := FormatSource("v.a = ", FormatOptions{}); r.OK || r.Error == "" {
+		t.Errorf("broken: %+v", r)
+	}
+	a := &Analyzer{}
+	var p FormatSourceResult
+	json.Unmarshal([]byte(a.Call("formatSource", `["v.a=#{x};", "{\"style\":\"minify\",\"templates\":true}"]`)), &p)
+	if !p.OK || p.Text != "v.a=#{x};" {
+		t.Errorf("formatSource through Call: %+v", p)
+	}
+}

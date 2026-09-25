@@ -132,6 +132,21 @@
           "default": true,
           "markdownDescription": "Also read as Molang the strings the JSON schemas VS Code applies to a file mark as Molang (from extensions, `json.schemas` or the file's `$schema`), where the shipped path catalogue has no entry. **Molang: Show Molang regions in this file** shows which source found each string."
         },
+        "molang.format.indentSize": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "default": null,
+          "minimum": 1,
+          "markdownDescription": "Spaces per indentation level when formatting `.molang` files. `null` follows the editor's own indentation settings, tabs included."
+        },
+        "molang.format.lineWidth": {
+          "type": "integer",
+          "default": 100,
+          "minimum": 20,
+          "markdownDescription": "The line width formatting keeps `.molang` files to where it can: a longer conditional, chain of operators or argument list is broken over several lines."
+        },
         "molang.json.enabled": {
           "type": "boolean",
           "default": true,

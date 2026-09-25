@@ -1,0 +1,9 @@
+# Walk animation blend for a quadruped.
+# The speed is smoothed so the legs do not snap between gaits.
+
+v.target_speed = q.modified_move_speed * (q.is_baby ? 1.5 : 1.0);
+v.speed = math.lerp(v.speed ?? 0, v.target_speed, 0.2); # smoothing factor
+
+
+v.gait = v.speed < 0.1 ? 0 : v.speed < 0.6 ? 1 : v.speed < 1.2 ? 2 : 3;  # idle, walk, trot, gallop
+return v.gait;

@@ -4,6 +4,7 @@
 // supply them from fetch() instead of the file system.
 
 import type { Connection, InitializeResult, TextDocuments } from 'vscode-languageserver';
+import type { TextEdit } from 'vscode-languageserver-types';
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { MolangEngine } from './bridge';
 import { Catalogue } from './catalogue';
@@ -45,6 +46,7 @@ interface ClientSettings {
   diagnostics?: { unknownQueries?: Settings['unknownQueries'] };
   versionSource?: Settings['versionSource'];
   json?: Partial<Settings['json']> & { schemaDetection?: boolean };
+  format?: Partial<Settings['format']>;
 }
 
 export interface InitializationOptions {
@@ -85,6 +87,8 @@ export interface RegionsResponse {
 // TextDocumentSyncKind.Incremental, spelled out: the protocol package's
 // runtime values come with a Node transport attached.
 const INCREMENTAL_SYNC = 2;
+// CodeActionKind.RefactorRewrite, likewise.
+const CODE_ACTION_REWRITE = 'refactor.rewrite';
 
 export function startServer(host: ServerHost) {
   const { connection, documents } = host;
@@ -102,6 +106,7 @@ export function startServer(host: ServerHost) {
       unknownQueries: s?.diagnostics?.unknownQueries ?? defaultSettings.unknownQueries,
       versionSource: s?.versionSource ?? defaultSettings.versionSource,
       json: { ...defaultSettings.json, ...json },
+      format: { ...defaultSettings.format, ...(s?.format ?? {}) },
     };
     schemaDetection = detect !== false;
     if (paths) paths.useSchemas = schemaDetection;
@@ -175,6 +180,8 @@ export function startServer(host: ServerHost) {
         semanticTokensProvider: { legend: { tokenTypes: TOKEN_TYPES, tokenModifiers: TOKEN_MODIFIERS }, full: true },
         documentSymbolProvider: true,
         documentFormattingProvider: true,
+        documentRangeFormattingProvider: true,
+        codeActionProvider: { codeActionKinds: [CODE_ACTION_REWRITE] },
       },
       serverInfo: { name: 'molang' },
     };
@@ -265,16 +272,18 @@ export function startServer(host: ServerHost) {
     }),
   );
   connection.onDocumentSymbol((p) => withDoc(p.textDocument.uri, [], (s, doc) => s.documentSymbols(doc)));
-  connection.onDocumentFormatting((p) =>
-    withDoc(p.textDocument.uri, [], (s, doc) => {
-      const r = s.formatEdits(doc);
-      if ('error' in r) {
-        connection.window.showInformationMessage(`Molang: not formatted. ${r.error}`);
-        return [];
-      }
-      return r;
-    }),
+  const edits = (r: TextEdit[] | { error: string }) => {
+    if ('error' in r) {
+      connection.window.showInformationMessage(`Molang: not formatted. ${r.error}`);
+      return [];
+    }
+    return r;
+  };
+  connection.onDocumentFormatting((p) => withDoc(p.textDocument.uri, [], (s, doc) => edits(s.formatEdits(doc, p.options))));
+  connection.onDocumentRangeFormatting((p) =>
+    withDoc(p.textDocument.uri, [], (s, doc) => edits(s.rangeFormatEdits(doc, p.range, p.options))),
   );
+  connection.onCodeAction((p) => withDoc(p.textDocument.uri, [], (s, doc) => s.codeActions(doc, p.range)));
   connection.onRequest(RegionsRequest, (p: { uri: string }) =>
     withDoc<RegionsResponse>(p.uri, { regions: [] }, (s, doc) => ({ regions: s.regions(doc) })),
   );
