@@ -1,0 +1,6 @@
+t.dir = q.is_on_ground && !q.is_in_water ? (q.is_moving ? (q.is_sprinting ? 2 : 1) : 0) : q.is_in_water ? 3 : 4;
+for_each(t.e, q.get_nearby_entities(8, 'minecraft:player'), {
+  t.d = t.e -> q.distance_from_camera;  t.nearest = math.min(t.nearest ?? 99, t.d); # keep the closest
+});
+t.nearest < 3 ? { v.alert = 1; return 1; } : t.nearest < 6 ? { v.alert = 0.5; } : { v.alert = 0; };
+return 0;

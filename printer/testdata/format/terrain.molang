@@ -1,0 +1,14 @@
+# Surface noise for a custom biome feature.
+t.base = q.noise(v.originx / 64, v.originz / 64);
+{
+  # ridges
+  t.ridge = 1 - math.abs(q.noise(v.originx / 16, v.originz / 16)); t.ridge = t.ridge * t.ridge;
+};
+t.height = t.base * 12 + t.ridge * 6 + math.clamp(q.heightmap(v.originx, v.originz) - 62, 0, 30) * 0.25 + 64;
+t.i = 0;
+loop(4, {
+    t.i = t.i + 1;
+    # stop once we are under water
+    q.block_has_all_tags(v.originx, t.height - t.i, v.originz, 'water') ? { break; };
+});
+return t.height;
