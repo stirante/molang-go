@@ -74,14 +74,12 @@ type Options struct {
 	// UnknownQueries is the severity for a query name that does not
 	// resolve: one the catalogue does not list, one outside the field's
 	// query set or allow-list, one gated out by Version. "error",
-	// "warning", "information", "hint" or "off"; empty means "warning".
-	//
-	// A warning and not an error, though the game logs an error and the
-	// expression does not load, because this package does not itself
-	// model which names resolve -- the verdict rests on the catalogue and
-	// on the host's account of the field. A catalogue marked partial turns
-	// a name it lacks into a hint: missing from a list known to be
-	// incomplete is a question, not a finding.
+	// "warning", "information", "hint" or "off"; empty means "error", since
+	// the game refuses to load an expression naming one. The verdict rests
+	// on the catalogue and on the host's account of the field, which is
+	// why a host can soften it. A catalogue marked partial turns a name it
+	// lacks into a hint: missing from a list known to be incomplete is a
+	// question, not a finding.
 	UnknownQueries string `json:"unknownQueries,omitempty"`
 }
 
@@ -285,13 +283,13 @@ func (d *diagnoser) tokenRange(pos int) (int, int) {
 //
 // Argument counts are only checked when the source parsed. In a source that
 // does not, a count is as likely to be counting the mistake as the author's
-// intent, and the syntax error already says where to look. And a wrong count
-// for a query is a warning: the game does not check it when the expression
-// loads -- the query itself complains, or not, when it runs.
+// intent, and the syntax error already says where to look. And a missing
+// argument to a query is a warning: the game does not check it when the
+// expression loads -- the query itself complains, or not, when it runs.
 func (a *Analyzer) checkRefs(d *diagnoser, refs []ref, opts Options, parsed bool) {
 	unresolvedSev := opts.UnknownQueries
 	if unresolvedSev == "" {
-		unresolvedSev = "warning"
+		unresolvedSev = "error"
 	}
 	allowed := map[string]bool{}
 	for _, q := range opts.AllowedQueries {
@@ -335,6 +333,16 @@ func (a *Analyzer) checkQuery(d *diagnoser, r *ref, opts Options, parsed bool, a
 		return
 	}
 	f := a.Catalogue.query(r.name)
+	member := false
+	if f == nil {
+		// query.spellcolor.b is member b of what query.spellcolor returns:
+		// the parser reads the dotted name whole, as it does a variable's,
+		// but only the first part names the query.
+		if dot := strings.IndexByte(r.name, '.'); dot > 0 {
+			f = a.Catalogue.query(r.name[:dot])
+			member = f != nil
+		}
+	}
 	if f == nil {
 		if a.Catalogue.Partial {
 			if opts.UnknownQueries == "" || opts.UnknownQueries == "hint" {
@@ -382,18 +390,29 @@ func (a *Analyzer) checkQuery(d *diagnoser, r *ref, opts Options, parsed bool, a
 		}
 		d.add(r.start, r.end, "hint", "query-deprecated", msg, "deprecated")
 	}
-	if parsed {
+	// Only a missing argument is reported, and only against an entry that
+	// spells its arguments out. The game does not count a query's arguments
+	// when the expression loads; the query reads what it needs when it runs,
+	// and vanilla passes extra ones (query.anger_level(this)). And the
+	// counts a query is registered with are metadata, looser than what it
+	// reads: an entry with no argument list has nothing better.
+	if parsed && !member && f.Args != nil {
 		n := 0
 		if r.call {
 			n = r.argc
 		}
-		if min, max := f.ArgRange(); n >= 0 && (n < min || (max >= 0 && n > max)) {
+		if min, max := f.ArgRange(); n >= 0 && n < min {
 			end := r.end
 			if r.call && r.callEnd > 0 {
 				end = r.callEnd
 			}
-			d.add(r.start, end, "warning", "query-arity",
-				fmt.Sprintf("query.%s takes %s, found %d", r.name, argCount(min, max), n))
+			if f.Confidence == "low" {
+				d.add(r.start, end, "information", "query-arity",
+					fmt.Sprintf("query.%s probably takes %s, found %d", r.name, argCount(min, max), n))
+			} else {
+				d.add(r.start, end, "warning", "query-arity",
+					fmt.Sprintf("query.%s takes %s, found %d", r.name, argCount(min, max), n))
+			}
 		}
 	}
 }

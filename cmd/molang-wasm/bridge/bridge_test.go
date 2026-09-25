@@ -27,6 +27,9 @@ const testCatalogue = `{
   "gameVersion": "test",
   "queries": [
     {"name": "is_baby", "args": []},
+    {"name": "registered", "minArgs": 1, "maxArgs": 1},
+    {"name": "unsure", "args": [{"name": "x"}], "confidence": "low"},
+    {"name": "spell", "args": [], "returns": "struct"},
     {"name": "position", "args": [{"name": "axis", "type": "number", "optional": false}]},
     {"name": "get_name", "args": [{"name": "a", "optional": true}, {"name": "b", "optional": true}]},
     {"name": "any_of", "args": [{"name": "x"}], "variadic": true},
@@ -189,47 +192,56 @@ func TestQueryChecks(t *testing.T) {
 	}{
 		{"q.is_baby", Options{}, "", "", ""},
 		{"Query.IS_BABY", Options{}, "", "", ""},
-		{"q.nope", Options{}, "unknown-query", "warning",
+		{"q.nope", Options{}, "unknown-query", "error",
 			"Failed to resolve query query.nope. Either the query does not exist or it is not supported in this context."},
-		{"q.nope", Options{UnknownQueries: "error"}, "unknown-query", "error", ""},
+		{"q.nope", Options{UnknownQueries: "warning"}, "unknown-query", "warning", ""},
 		{"q.nope", Options{UnknownQueries: "off"}, "", "", ""},
-		{"v.e->q.nope", Options{}, "unknown-query", "warning", ""},
+		{"v.e->q.nope", Options{}, "unknown-query", "error", ""},
 
-		// Arity is a warning, and only what the catalogue says.
+		// A missing argument is a warning; an extra one is nothing, as the
+		// game reads only what it needs; and without an argument list the
+		// registered counts are not trusted at all.
 		{"q.position", Options{}, "query-arity", "warning", "query.position takes 1 argument, found 0"},
 		{"q.position(0)", Options{}, "", "", ""},
-		{"q.position(0, 1)", Options{}, "query-arity", "warning", "query.position takes 1 argument, found 2"},
-		{"q.get_name('a', 1, 2)", Options{}, "query-arity", "warning", "query.get_name takes 0 to 2 arguments, found 3"},
+		{"q.position(0, 1)", Options{}, "", "", ""},
+		{"q.get_name('a', 1, 2)", Options{}, "", "", ""},
 		{"q.get_name", Options{}, "", "", ""},
 		{"q.any_of(1, 2, 3, 4)", Options{}, "", "", ""},
 		{"q.any_of()", Options{}, "query-arity", "warning", "query.any_of takes at least 1 argument, found 0"},
+		{"q.registered", Options{}, "", "", ""},
+		{"q.unsure", Options{}, "query-arity", "information", "query.unsure probably takes 1 argument, found 0"},
+		{"q.is_baby(this)", Options{}, "", "", ""},
+
+		// A dotted name is a member of what the query returns.
+		{"q.spell.r + q.spell.g", Options{}, "", "", ""},
+		{"q.nope.r", Options{}, "unknown-query", "error", ""},
 		{"q.old_thing", Options{}, "query-deprecated", "hint", "query.old_thing is deprecated; use query.new_thing instead"},
 
 		// Each field resolves its own query set, and an unknown field any.
 		{"q.noise(1, 2)", Options{}, "", "", ""},
 		{"q.noise(1, 2)", Options{QuerySet: "world_gen"}, "", "", ""},
-		{"q.noise(1, 2)", Options{QuerySet: "default"}, "query-context", "warning",
+		{"q.noise(1, 2)", Options{QuerySet: "default"}, "query-context", "error",
 			unresolved("noise", "query.noise belongs to world generation expressions")},
-		{"q.is_baby", Options{QuerySet: "world_gen"}, "query-context", "warning",
+		{"q.is_baby", Options{QuerySet: "world_gen"}, "query-context", "error",
 			unresolved("is_baby", "query.is_baby belongs to entity, block and item expressions")},
 		{"q.any_tag('a')", Options{QuerySet: "tags"}, "", "", ""},
-		{"q.any_tag('a')", Options{QuerySet: "default"}, "query-context", "warning", ""},
+		{"q.any_tag('a')", Options{QuerySet: "default"}, "query-context", "error", ""},
 
 		// A fixed allow-list replaces the set -- but not inside a query's
 		// arguments, which the game reads as default-set Molang.
 		{"q.block_state('a') == 1", blockField, "", "", ""},
-		{"q.is_baby", blockField, "query-context", "warning",
+		{"q.is_baby", blockField, "query-context", "error",
 			unresolved("is_baby", "this field allows only query.block_state")},
 		{"q.block_state(q.is_baby)", blockField, "", "", ""},
-		{"q.block_state(q.noise(1))", blockField, "query-context", "warning", ""},
+		{"q.block_state(q.noise(1))", blockField, "query-context", "error", ""},
 		{"q.noise(q.is_baby)", Options{QuerySet: "world_gen"}, "", "", ""},
 
 		// Version gates apply only when the version is known.
 		{"q.removed_thing", Options{}, "", "", ""},
 		{"q.removed_thing", Options{Version: "1.20.30"}, "", "", ""},
-		{"q.removed_thing", Options{Version: "1.20.40"}, "query-version", "warning",
+		{"q.removed_thing", Options{Version: "1.20.40"}, "query-version", "error",
 			unresolved("removed_thing", "query.removed_thing was removed in 1.20.40")},
-		{"q.new_thing", Options{Version: "1.20"}, "query-version", "warning", ""},
+		{"q.new_thing", Options{Version: "1.20"}, "query-version", "error", ""},
 		{"q.new_thing", Options{Version: "1.21.0.3"}, "", "", ""},
 	}
 	for _, c := range cases {
@@ -248,8 +260,8 @@ func TestQueryChecks(t *testing.T) {
 		if d.Code != c.want || d.Severity != c.severity || (c.msg != "" && d.Message != c.msg) {
 			t.Errorf("%q: %s/%s %q", c.src, d.Code, d.Severity, d.Message)
 		}
-		if !r.OK && d.Severity != "error" {
-			t.Errorf("%q: a %s made the result not OK", c.src, d.Severity)
+		if r.OK != (d.Severity != "error") {
+			t.Errorf("%q: OK=%v with a %s", c.src, r.OK, d.Severity)
 		}
 	}
 
@@ -494,10 +506,10 @@ func TestCall(t *testing.T) {
 		t.Errorf("setCatalogue: %+v", s)
 	}
 	var r Result
-	if err := json.Unmarshal([]byte(a.Call("analyze", `["q.is_baby + q.nope", {"unknownQueries": "error"}]`)), &r); err != nil {
+	if err := json.Unmarshal([]byte(a.Call("analyze", `["q.is_baby + q.nope", {"unknownQueries": "warning"}]`)), &r); err != nil {
 		t.Fatal(err)
 	}
-	if len(r.Diagnostics) != 1 || r.Diagnostics[0].Severity != "error" {
+	if len(r.Diagnostics) != 1 || r.Diagnostics[0].Severity != "warning" {
 		t.Errorf("analyze: %+v", r)
 	}
 	// Options may be omitted or null.
@@ -532,8 +544,8 @@ func TestCall(t *testing.T) {
 	}
 }
 
-// The catalogue the extension ships must load, and must list exactly the
-// math functions the evaluator has: completion offering a function the
+// The catalogue the extension ships must load, and its math table must list
+// exactly the functions the evaluator has: completion offering a function the
 // diagnostics then refuse, or missing one they accept, is a bug either way.
 func TestShippedCatalogue(t *testing.T) {
 	data, err := os.ReadFile("../../../apps/vscode/catalogue/catalogue.json")
@@ -544,33 +556,44 @@ func TestShippedCatalogue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(c.Queries) < 300 {
+		t.Errorf("only %d queries", len(c.Queries))
+	}
+	for _, q := range c.Queries {
+		if q.Description == "" {
+			t.Errorf("query.%s has no description", q.Name)
+		}
+	}
+	data, err = os.ReadFile("../../../apps/vscode/catalogue/math.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var math []Function
+	if err := json.Unmarshal(data, &math); err != nil {
+		t.Fatal(err)
+	}
 	listed := map[string]bool{}
-	for _, f := range c.Math {
+	for _, f := range math {
 		listed[f.Name] = true
 		if f.Name == "pi" {
 			continue
 		}
 		arity, ok := eval.MathArity[f.Name]
 		if !ok {
-			t.Errorf("catalogue lists math.%s, which the evaluator does not have", f.Name)
+			t.Errorf("math.json lists math.%s, which the evaluator does not have", f.Name)
 			continue
 		}
 		if min, max := f.ArgRange(); min != arity || max != arity {
-			t.Errorf("math.%s: catalogue says %d-%d arguments, evaluator %d", f.Name, min, max, arity)
+			t.Errorf("math.%s: math.json says %d-%d arguments, evaluator %d", f.Name, min, max, arity)
 		}
 	}
 	for name := range eval.MathArity {
 		if !listed[name] {
-			t.Errorf("catalogue does not list math.%s", name)
+			t.Errorf("math.json does not list math.%s", name)
 		}
 	}
 	if !listed["pi"] {
-		t.Error("catalogue does not list math.pi")
-	}
-	for _, q := range c.Queries {
-		if q.Description == "" {
-			t.Errorf("query.%s has no description", q.Name)
-		}
+		t.Error("math.json does not list math.pi")
 	}
 }
 

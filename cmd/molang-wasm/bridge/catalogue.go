@@ -60,6 +60,10 @@ type Function struct {
 	ClientOnly  bool      `json:"clientOnly"`
 	Description string    `json:"description"`
 	Notes       []string  `json:"notes"`
+	// Confidence is how sure the catalogue is of the entry's details:
+	// "high", "medium" or "low". Not shown; a low one softens what is said
+	// about the argument count.
+	Confidence string `json:"confidence"`
 }
 
 // VersionGate is the range of versions a function resolves in: from Since,

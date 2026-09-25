@@ -1,0 +1,1765 @@
+[
+ {
+  "name": "abs",
+  "summary": "Absolute value of a number",
+  "description": "Returns `value` with its sign removed, so the result is never negative. NaN stays NaN.",
+  "args": [
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "Any number."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.abs(query.modified_move_speed - 0.5)",
+  "notes": []
+ },
+ {
+  "name": "acos",
+  "summary": "Arc cosine, in degrees",
+  "description": "Returns the angle, in **degrees** (0 to 180), whose cosine is `value`. Input slightly outside -1..1 (a rounding near-miss such as 1.0005) is treated as the nearest endpoint instead of producing NaN.",
+  "args": [
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "Cosine of the angle, normally -1 to 1."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.acos(v.dot)",
+  "notes": [
+   "Returns degrees, not radians — unlike most programming languages.",
+   "Inputs just outside -1..1 are pulled to the endpoint rather than returning NaN; don't rely on this for values far outside the range.",
+   "Results are float32, so right angles come out a few ulps off (e.g. 90.00001)."
+  ]
+ },
+ {
+  "name": "asin",
+  "summary": "Arc sine, in degrees",
+  "description": "Returns the angle, in **degrees** (-90 to 90), whose sine is `value`. Input slightly outside -1..1 is treated as the nearest endpoint instead of producing NaN.",
+  "args": [
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "Sine of the angle, normally -1 to 1."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.asin(v.height_ratio)",
+  "notes": [
+   "Returns degrees, not radians.",
+   "Inputs just outside -1..1 are pulled to the endpoint rather than returning NaN; don't rely on this for values far outside the range."
+  ]
+ },
+ {
+  "name": "atan",
+  "summary": "Arc tangent, in degrees",
+  "description": "Returns the angle, in **degrees** (between -90 and 90), whose tangent is `value`.",
+  "args": [
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "Tangent of the angle."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.atan(v.slope)",
+  "notes": [
+   "Returns degrees, not radians.",
+   "Cannot tell opposite quadrants apart; use `math.atan2(y, x)` when you have both components."
+  ]
+ },
+ {
+  "name": "atan2",
+  "summary": "Angle of the vector (x, y) in degrees; y comes first",
+  "description": "Returns the angle, in **degrees** (-180 to 180), from the positive x axis to the point (`x`, `y`). Note the argument order: `y` first, then `x`. `math.atan2(1, 0)` is 90 and `math.atan2(0, -1)` is 180.",
+  "args": [
+   {
+    "name": "y",
+    "type": "number",
+    "optional": false,
+    "description": "Vertical (second) component."
+   },
+   {
+    "name": "x",
+    "type": "number",
+    "optional": false,
+    "description": "Horizontal (first) component."
+   }
+  ],
+  "minArgs": 2,
+  "maxArgs": 2,
+  "returns": "number",
+  "example": "math.atan2(v.dz, v.dx)",
+  "notes": [
+   "Argument order is (y, x), matching C's atan2 — swapping them silently gives the wrong angle.",
+   "Returns degrees, not radians."
+  ]
+ },
+ {
+  "name": "ceil",
+  "summary": "Round up to the nearest whole number",
+  "description": "Returns the smallest whole number that is greater than or equal to `value`. `math.ceil(1.2)` is 2 and `math.ceil(-1.2)` is -1.",
+  "args": [
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "Number to round up."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.ceil(query.health / 4)",
+  "notes": []
+ },
+ {
+  "name": "clamp",
+  "summary": "Limit a value to the range min..max",
+  "description": "Returns `value` limited to lie between `min` and `max`. The upper bound is checked first: anything above `max` becomes `max`, otherwise anything at or below `min` becomes `min`. If `value` is NaN, NaN is returned.",
+  "args": [
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "Number to limit."
+   },
+   {
+    "name": "min",
+    "type": "number",
+    "optional": false,
+    "description": "Lower bound."
+   },
+   {
+    "name": "max",
+    "type": "number",
+    "optional": false,
+    "description": "Upper bound."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.clamp(v.speed, 0, 1)",
+  "notes": [
+   "Bounds are not swapped for you. With `min` greater than `max` the upper bound wins for large values: `math.clamp(3, 2, 1)` is 1 and `math.clamp(-2, -1, -3)` is -3.",
+   "A NaN value passes straight through."
+  ]
+ },
+ {
+  "name": "copy_sign",
+  "summary": "Magnitude of the first number with the sign of the second",
+  "description": "Returns the absolute value of `value` carrying the sign of `sign`. A negative zero in `sign` counts as negative, so `math.copy_sign(3, -0)` is -3.",
+  "args": [
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "Number whose magnitude is kept."
+   },
+   {
+    "name": "sign",
+    "type": "number",
+    "optional": false,
+    "description": "Number whose sign is used."
+   }
+  ],
+  "minArgs": 2,
+  "maxArgs": 2,
+  "returns": "number",
+  "example": "math.copy_sign(0.25, v.direction)",
+  "notes": []
+ },
+ {
+  "name": "cos",
+  "summary": "Cosine of an angle given in degrees",
+  "description": "Returns the cosine of `angle`, where `angle` is in **degrees** (not radians). The result is between -1 and 1. The conversion to radians is done in single precision, so values that should be exactly zero are not: `math.cos(90)` is about -4.4e-8.",
+  "args": [
+   {
+    "name": "angle",
+    "type": "number",
+    "optional": false,
+    "description": "Angle in degrees."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.cos(query.anim_time * 360) * 0.5",
+  "notes": [
+   "Takes degrees, not radians — `math.cos(math.pi)` is the cosine of about 3.14 degrees, not -1.",
+   "Expected zeros come out as tiny non-zero values (`math.cos(90)` ≈ -4.4e-8), so avoid exact `== 0` comparisons.",
+   "The last bit can differ between platforms, since the game uses the device's C library for this."
+  ]
+ },
+ {
+  "name": "die_roll",
+  "summary": "Sum of several random decimal rolls in the range low..high",
+  "description": "Rolls `count` times, each roll a random decimal between `low` and `high` (like `math.random`), and returns the sum. `count` is rounded to the nearest whole number; zero or a negative count returns 0 without rolling.",
+  "args": [
+   {
+    "name": "count",
+    "type": "number",
+    "optional": false,
+    "description": "How many rolls to add together."
+   },
+   {
+    "name": "low",
+    "type": "number",
+    "optional": false,
+    "description": "Lower end of each roll."
+   },
+   {
+    "name": "high",
+    "type": "number",
+    "optional": false,
+    "description": "Upper end of each roll."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.die_roll(3, 1, 6)",
+  "notes": [
+   "The count comes FIRST: `math.die_roll(count, low, high)`, not `(low, high, count)`.",
+   "Each roll is a decimal, not a whole number — use `math.die_roll_integer` for dice-like values.",
+   "Consumes one random draw per roll; a large count is slow, as there is no upper limit.",
+   "Fields that refuse `math.random` (block permutation conditions, block bone visibility) do not refuse this, even though it is just as random."
+  ]
+ },
+ {
+  "name": "die_roll_integer",
+  "summary": "Sum of several random whole-number rolls, low..high inclusive",
+  "description": "Rolls `count` times, each roll a random whole number from `low` to `high` inclusive (like `math.random_integer`), and returns the sum. `count` is rounded to the nearest whole number; zero or a negative count returns 0 without rolling.",
+  "args": [
+   {
+    "name": "count",
+    "type": "number",
+    "optional": false,
+    "description": "How many rolls to add together."
+   },
+   {
+    "name": "low",
+    "type": "number",
+    "optional": false,
+    "description": "Smallest value of each roll."
+   },
+   {
+    "name": "high",
+    "type": "number",
+    "optional": false,
+    "description": "Largest value of each roll."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.die_roll_integer(2, 1, 6)",
+  "notes": [
+   "The count comes FIRST: `math.die_roll_integer(2, 1, 6)` is two six-sided dice.",
+   "Pass whole numbers: bounds are not rounded, so a fractional `low` shifts every roll by that fraction.",
+   "Keep `low` ≤ `high`; reversed bounds do not swap and produce meaningless (often huge) values.",
+   "Consumes one random draw per roll.",
+   "Fields that refuse `math.random_integer` (block permutation conditions, block bone visibility) do not refuse this, even though it is just as random."
+  ]
+ },
+ {
+  "name": "ease_in_back",
+  "summary": "Ease-in back easing from start to end",
+  "description": "Interpolates from `start` to `end` along an overshooting curve that starts slowly and speeds up toward `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1. The curve pulls back behind `start` before moving.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_back(0, 1.5, v.pop)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last.",
+   "The result goes outside `start`..`end` by design: in variants dip below `start`, out variants overshoot `end`."
+  ]
+ },
+ {
+  "name": "ease_in_bounce",
+  "summary": "Ease-in bounce easing from start to end",
+  "description": "Interpolates from `start` to `end` along a bouncing curve that starts slowly and speeds up toward `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_bounce(4, 0, math.clamp(query.anim_time, 0, 1))",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last."
+  ]
+ },
+ {
+  "name": "ease_in_circ",
+  "summary": "Ease-in circular easing from start to end",
+  "description": "Interpolates from `start` to `end` along a circular-arc curve that starts slowly and speeds up toward `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_circ(0, 1, math.clamp(v.t, 0, 1))",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last.",
+   "Outside the range the circle is defined on, the result is NaN (e.g. `math.ease_in_circ(0, 1, 2)`), and NaN counts as true in conditions."
+  ]
+ },
+ {
+  "name": "ease_in_cubic",
+  "summary": "Ease-in cubic easing from start to end",
+  "description": "Interpolates from `start` to `end` along a cubic curve, stronger than quad that starts slowly and speeds up toward `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_cubic(0, 1, query.anim_time / 0.5)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last."
+  ]
+ },
+ {
+  "name": "ease_in_elastic",
+  "summary": "Ease-in elastic easing from start to end",
+  "description": "Interpolates from `start` to `end` along a springy, oscillating curve that starts slowly and speeds up toward `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_elastic(0, 1, math.clamp(v.t, 0, 1))",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last.",
+   "The result goes outside `start`..`end` by design while oscillating.",
+   "Uses a 65536-step sine lookup table, so values are quantised; the endpoints themselves are exact."
+  ]
+ },
+ {
+  "name": "ease_in_expo",
+  "summary": "Ease-in exponential easing from start to end",
+  "description": "Interpolates from `start` to `end` along a sharp exponential curve that starts slowly and speeds up toward `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_expo(1, 0, v.fade)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last.",
+   "The endpoints are not snapped: at t = 0 and t = 1 the result is very slightly off `start`/`end` (e.g. `math.ease_out_expo(0, 1, 1)` is 0.99902, `math.ease_in_expo(0, 1, 0)` is 0.00098). Don't compare to `end` exactly."
+  ]
+ },
+ {
+  "name": "ease_in_out_back",
+  "summary": "Ease-in-out back easing from start to end",
+  "description": "Interpolates from `start` to `end` along an overshooting curve that starts slowly, speeds up in the middle and slows into `end`, symmetric around t = 0.5. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1. The curve pulls back behind `start` and overshoots `end`.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_out_back(0, 1.5, v.pop)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last.",
+   "The result goes outside `start`..`end` by design: in variants dip below `start`, out variants overshoot `end`."
+  ]
+ },
+ {
+  "name": "ease_in_out_bounce",
+  "summary": "Ease-in-out bounce easing from start to end",
+  "description": "Interpolates from `start` to `end` along a bouncing curve that starts slowly, speeds up in the middle and slows into `end`, symmetric around t = 0.5. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_out_bounce(4, 0, math.clamp(query.anim_time, 0, 1))",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last."
+  ]
+ },
+ {
+  "name": "ease_in_out_circ",
+  "summary": "Ease-in-out circular easing from start to end",
+  "description": "Interpolates from `start` to `end` along a circular-arc curve that starts slowly, speeds up in the middle and slows into `end`, symmetric around t = 0.5. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_out_circ(0, 1, math.clamp(v.t, 0, 1))",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last.",
+   "Outside the range the circle is defined on, the result is NaN (e.g. `math.ease_in_circ(0, 1, 2)`), and NaN counts as true in conditions."
+  ]
+ },
+ {
+  "name": "ease_in_out_cubic",
+  "summary": "Ease-in-out cubic easing from start to end",
+  "description": "Interpolates from `start` to `end` along a cubic curve, stronger than quad that starts slowly, speeds up in the middle and slows into `end`, symmetric around t = 0.5. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_out_cubic(0, 1, query.anim_time / 0.5)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last."
+  ]
+ },
+ {
+  "name": "ease_in_out_elastic",
+  "summary": "Ease-in-out elastic easing from start to end",
+  "description": "Interpolates from `start` to `end` along a springy, oscillating curve that starts slowly, speeds up in the middle and slows into `end`, symmetric around t = 0.5. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_out_elastic(0, 1, math.clamp(v.t, 0, 1))",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last.",
+   "The result goes outside `start`..`end` by design while oscillating.",
+   "Uses a 65536-step sine lookup table, so values are quantised; the endpoints themselves are exact."
+  ]
+ },
+ {
+  "name": "ease_in_out_expo",
+  "summary": "Ease-in-out exponential easing from start to end",
+  "description": "Interpolates from `start` to `end` along a sharp exponential curve that starts slowly, speeds up in the middle and slows into `end`, symmetric around t = 0.5. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_out_expo(1, 0, v.fade)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last.",
+   "The endpoints are not snapped: at t = 0 and t = 1 the result is very slightly off `start`/`end` (e.g. `math.ease_out_expo(0, 1, 1)` is 0.99902, `math.ease_in_expo(0, 1, 0)` is 0.00098). Don't compare to `end` exactly."
+  ]
+ },
+ {
+  "name": "ease_in_out_quad",
+  "summary": "Ease-in-out quadratic easing from start to end",
+  "description": "Interpolates from `start` to `end` along a gentle quadratic curve that starts slowly, speeds up in the middle and slows into `end`, symmetric around t = 0.5. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_out_quad(0, 90, v.t)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last."
+  ]
+ },
+ {
+  "name": "ease_in_out_quart",
+  "summary": "Ease-in-out quartic easing from start to end",
+  "description": "Interpolates from `start` to `end` along a quartic curve, stronger than cubic that starts slowly, speeds up in the middle and slows into `end`, symmetric around t = 0.5. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_out_quart(v.from, v.to, v.progress)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last."
+  ]
+ },
+ {
+  "name": "ease_in_out_quint",
+  "summary": "Ease-in-out quintic easing from start to end",
+  "description": "Interpolates from `start` to `end` along a quintic curve, the strongest polynomial ease that starts slowly, speeds up in the middle and slows into `end`, symmetric around t = 0.5. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_out_quint(0, 30, v.progress)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last."
+  ]
+ },
+ {
+  "name": "ease_in_out_sine",
+  "summary": "Ease-in-out sine easing from start to end",
+  "description": "Interpolates from `start` to `end` along a soft sine-shaped curve that starts slowly, speeds up in the middle and slows into `end`, symmetric around t = 0.5. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_out_sine(-10, 10, v.t)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last.",
+   "Uses a 65536-step lookup table rather than an exact sine, so results are quantised and can differ slightly from a `math.sin`-based formula; `math.ease_in_sine(0, 1, 1)` is 1.0000001, not exactly 1."
+  ]
+ },
+ {
+  "name": "ease_in_quad",
+  "summary": "Ease-in quadratic easing from start to end",
+  "description": "Interpolates from `start` to `end` along a gentle quadratic curve that starts slowly and speeds up toward `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_quad(0, 90, v.t)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last."
+  ]
+ },
+ {
+  "name": "ease_in_quart",
+  "summary": "Ease-in quartic easing from start to end",
+  "description": "Interpolates from `start` to `end` along a quartic curve, stronger than cubic that starts slowly and speeds up toward `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_quart(v.from, v.to, v.progress)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last."
+  ]
+ },
+ {
+  "name": "ease_in_quint",
+  "summary": "Ease-in quintic easing from start to end",
+  "description": "Interpolates from `start` to `end` along a quintic curve, the strongest polynomial ease that starts slowly and speeds up toward `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_quint(0, 30, v.progress)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last."
+  ]
+ },
+ {
+  "name": "ease_in_sine",
+  "summary": "Ease-in sine easing from start to end",
+  "description": "Interpolates from `start` to `end` along a soft sine-shaped curve that starts slowly and speeds up toward `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_in_sine(-10, 10, v.t)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last.",
+   "Uses a 65536-step lookup table rather than an exact sine, so results are quantised and can differ slightly from a `math.sin`-based formula; `math.ease_in_sine(0, 1, 1)` is 1.0000001, not exactly 1."
+  ]
+ },
+ {
+  "name": "ease_out_back",
+  "summary": "Ease-out back easing from start to end",
+  "description": "Interpolates from `start` to `end` along an overshooting curve that starts fast and slows down into `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1. The curve overshoots `end` before settling.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_out_back(0, 1.5, v.pop)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last.",
+   "The result goes outside `start`..`end` by design: in variants dip below `start`, out variants overshoot `end`."
+  ]
+ },
+ {
+  "name": "ease_out_bounce",
+  "summary": "Ease-out bounce easing from start to end",
+  "description": "Interpolates from `start` to `end` along a bouncing curve that starts fast and slows down into `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_out_bounce(4, 0, math.clamp(query.anim_time, 0, 1))",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last."
+  ]
+ },
+ {
+  "name": "ease_out_circ",
+  "summary": "Ease-out circular easing from start to end",
+  "description": "Interpolates from `start` to `end` along a circular-arc curve that starts fast and slows down into `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_out_circ(0, 1, math.clamp(v.t, 0, 1))",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last.",
+   "Outside the range the circle is defined on, the result is NaN (e.g. `math.ease_in_circ(0, 1, 2)`), and NaN counts as true in conditions."
+  ]
+ },
+ {
+  "name": "ease_out_cubic",
+  "summary": "Ease-out cubic easing from start to end",
+  "description": "Interpolates from `start` to `end` along a cubic curve, stronger than quad that starts fast and slows down into `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_out_cubic(0, 1, query.anim_time / 0.5)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last."
+  ]
+ },
+ {
+  "name": "ease_out_elastic",
+  "summary": "Ease-out elastic easing from start to end",
+  "description": "Interpolates from `start` to `end` along a springy, oscillating curve that starts fast and slows down into `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_out_elastic(0, 1, math.clamp(v.t, 0, 1))",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last.",
+   "The result goes outside `start`..`end` by design while oscillating.",
+   "Uses a 65536-step sine lookup table, so values are quantised; the endpoints themselves are exact."
+  ]
+ },
+ {
+  "name": "ease_out_expo",
+  "summary": "Ease-out exponential easing from start to end",
+  "description": "Interpolates from `start` to `end` along a sharp exponential curve that starts fast and slows down into `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_out_expo(1, 0, v.fade)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last.",
+   "The endpoints are not snapped: at t = 0 and t = 1 the result is very slightly off `start`/`end` (e.g. `math.ease_out_expo(0, 1, 1)` is 0.99902, `math.ease_in_expo(0, 1, 0)` is 0.00098). Don't compare to `end` exactly."
+  ]
+ },
+ {
+  "name": "ease_out_quad",
+  "summary": "Ease-out quadratic easing from start to end",
+  "description": "Interpolates from `start` to `end` along a gentle quadratic curve that starts fast and slows down into `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_out_quad(0, 90, v.t)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last."
+  ]
+ },
+ {
+  "name": "ease_out_quart",
+  "summary": "Ease-out quartic easing from start to end",
+  "description": "Interpolates from `start` to `end` along a quartic curve, stronger than cubic that starts fast and slows down into `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_out_quart(v.from, v.to, v.progress)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last."
+  ]
+ },
+ {
+  "name": "ease_out_quint",
+  "summary": "Ease-out quintic easing from start to end",
+  "description": "Interpolates from `start` to `end` along a quintic curve, the strongest polynomial ease that starts fast and slows down into `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_out_quint(0, 30, v.progress)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last."
+  ]
+ },
+ {
+  "name": "ease_out_sine",
+  "summary": "Ease-out sine easing from start to end",
+  "description": "Interpolates from `start` to `end` along a soft sine-shaped curve that starts fast and slows down into `end`. Returns `start + (end − start) × curve(t)`: `start` at t = 0 and `end` at t = 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Progress, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.ease_out_sine(-10, 10, v.t)",
+  "notes": [
+   "`t` is not clamped: values below 0 or above 1 extrapolate the curve. Clamp it yourself (`math.clamp(t, 0, 1)`) for a bounded result.",
+   "Argument order is (start, end, t) — the progress value comes last.",
+   "Uses a 65536-step lookup table rather than an exact sine, so results are quantised and can differ slightly from a `math.sin`-based formula; `math.ease_in_sine(0, 1, 1)` is 1.0000001, not exactly 1."
+  ]
+ },
+ {
+  "name": "exp",
+  "summary": "e raised to a power",
+  "description": "Returns e (≈2.71828) raised to the power `value`. Overflows to infinity above roughly 88 and underflows to 0 for very negative input.",
+  "args": [
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "The exponent."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.exp(-v.distance * 0.5)",
+  "notes": [
+   "float32 range is small: `math.exp(89)` is already infinity."
+  ]
+ },
+ {
+  "name": "floor",
+  "summary": "Round down to the nearest whole number",
+  "description": "Returns the largest whole number that is less than or equal to `value`. `math.floor(1.7)` is 1 and `math.floor(-1.2)` is -2.",
+  "args": [
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "Number to round down."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.floor(query.life_time * 4)",
+  "notes": [
+   "Rounds toward negative infinity; use `math.trunc` to drop the fraction toward zero instead.",
+   "Beware tiny negative results from trig: `math.floor(math.sin(180))` is -1, not 0."
+  ]
+ },
+ {
+  "name": "hermite_blend",
+  "summary": "Smooth S-curve 3t² − 2t³",
+  "description": "Returns `3t² − 2t³`, a smooth step that is 0 at t = 0, 0.5 at t = 0.5 and 1 at t = 1, with zero slope at both ends.",
+  "args": [
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Blend factor, normally 0 to 1."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.lerp(v.from, v.to, math.hermite_blend(v.progress))",
+  "notes": [
+   "`t` is not clamped: outside 0..1 the curve keeps going (`math.hermite_blend(2)` is -4). Clamp it yourself if needed."
+  ]
+ },
+ {
+  "name": "inverse_lerp",
+  "summary": "Where a value sits between start and end, as a 0..1 fraction",
+  "description": "Returns `(value − start) / (end − start)`: 0 when `value` equals `start`, 1 when it equals `end`, and proportionally in between. Values outside the range give results below 0 or above 1.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value that maps to 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value that maps to 1."
+   },
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "Value to locate."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.inverse_lerp(0, 20, query.health)",
+  "notes": [
+   "Not clamped: values beyond `start`..`end` give results outside 0..1.",
+   "Unlike the `/` operator, there is no divide-by-zero guard: when `start` equals `end` the result is ±infinity, or NaN if `value` equals them too."
+  ]
+ },
+ {
+  "name": "lerp",
+  "summary": "Linear interpolation from start to end",
+  "description": "Returns `start + (end − start) × t`: `start` at t = 0, `end` at t = 1, halfway at 0.5.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 0."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Value at t = 1."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Interpolation factor, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.lerp(0, 45, query.modified_move_speed)",
+  "notes": [
+   "`t` is not clamped: `math.lerp(0, 10, 2)` is 20. Wrap it in `math.clamp(t, 0, 1)` if you need a bounded result."
+  ]
+ },
+ {
+  "name": "lerprotate",
+  "summary": "Interpolate between two angles the short way round",
+  "description": "Interpolates from angle `start` to angle `end` (in **degrees**) by `t`, taking the shortest direction around the circle. `math.lerprotate(350, 10, 0.5)` moves 10° forward to 360 rather than 170° backward.",
+  "args": [
+   {
+    "name": "start",
+    "type": "number",
+    "optional": false,
+    "description": "Starting angle in degrees."
+   },
+   {
+    "name": "end",
+    "type": "number",
+    "optional": false,
+    "description": "Target angle in degrees."
+   },
+   {
+    "name": "t",
+    "type": "number",
+    "optional": false,
+    "description": "Interpolation factor, normally 0 to 1."
+   }
+  ],
+  "minArgs": 3,
+  "maxArgs": 3,
+  "returns": "number",
+  "example": "math.lerprotate(v.last_yaw, query.body_y_rotation, 0.2)",
+  "notes": [
+   "The result is not wrapped into any range: it can land outside 0..360 or -180..180 (e.g. 360, or -90 for 0 → 270). Use `math.min_angle` to normalise it.",
+   "`t` is not clamped."
+  ]
+ },
+ {
+  "name": "ln",
+  "summary": "Natural logarithm",
+  "description": "Returns the natural (base-e) logarithm of `value`. `math.ln(0)` is negative infinity and a negative input gives NaN.",
+  "args": [
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "A positive number."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.ln(v.scale) / math.ln(2)",
+  "notes": [
+   "There is no log10 or log2; divide by `math.ln(10)` or `math.ln(2)`."
+  ]
+ },
+ {
+  "name": "max",
+  "summary": "The larger of two numbers",
+  "description": "Returns whichever of `a` and `b` is greater.",
+  "args": [
+   {
+    "name": "a",
+    "type": "number",
+    "optional": false,
+    "description": "First number."
+   },
+   {
+    "name": "b",
+    "type": "number",
+    "optional": false,
+    "description": "Second number."
+   }
+  ],
+  "minArgs": 2,
+  "maxArgs": 2,
+  "returns": "number",
+  "example": "math.max(0, v.cooldown - query.delta_time)",
+  "notes": [
+   "NaN handling depends on order: if either argument is NaN, the SECOND argument is returned. `math.max(NaN, 3)` is 3 but `math.max(3, NaN)` is NaN."
+  ]
+ },
+ {
+  "name": "min",
+  "summary": "The smaller of two numbers",
+  "description": "Returns whichever of `a` and `b` is smaller.",
+  "args": [
+   {
+    "name": "a",
+    "type": "number",
+    "optional": false,
+    "description": "First number."
+   },
+   {
+    "name": "b",
+    "type": "number",
+    "optional": false,
+    "description": "Second number."
+   }
+  ],
+  "minArgs": 2,
+  "maxArgs": 2,
+  "returns": "number",
+  "example": "math.min(query.health, 10)",
+  "notes": [
+   "NaN handling depends on order: if either argument is NaN, the SECOND argument is returned. `math.min(NaN, 3)` is 3 but `math.min(3, NaN)` is NaN."
+  ]
+ },
+ {
+  "name": "min_angle",
+  "summary": "Wrap an angle into the range -180..180 degrees",
+  "description": "Returns the equivalent angle in **degrees** within -180 to 180, e.g. `math.min_angle(370)` is 10 and `math.min_angle(190)` is -170.",
+  "args": [
+   {
+    "name": "angle",
+    "type": "number",
+    "optional": false,
+    "description": "Angle in degrees."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.min_angle(query.head_y_rotation(0) - query.body_y_rotation)",
+  "notes": [
+   "An input of exactly ±180 (or an odd multiple of it) may come back as either 180 or -180; don't compare the result to one of them exactly."
+  ]
+ },
+ {
+  "name": "mod",
+  "summary": "Remainder of a division, keeping the sign of the dividend",
+  "description": "Returns the remainder of `value / divisor`. The result has the sign of `value` (like C's fmod): `math.mod(-7, 3)` is -1, not 2. Division by zero returns 0 rather than NaN.",
+  "args": [
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "The dividend."
+   },
+   {
+    "name": "divisor",
+    "type": "number",
+    "optional": false,
+    "description": "The divisor."
+   }
+  ],
+  "minArgs": 2,
+  "maxArgs": 2,
+  "returns": "number",
+  "example": "math.mod(query.life_time, 2) < 1",
+  "notes": [
+   "Molang has no `%` operator; this is the only modulo.",
+   "Negative inputs give negative remainders. For a wrap-around index use `math.mod(math.mod(v.i, n) + n, n)`.",
+   "`math.mod(x, 0)` is 0."
+  ]
+ },
+ {
+  "name": "pi",
+  "constant": true,
+  "summary": "The constant π (≈3.1415927)",
+  "description": "The value of π rounded to single precision, 3.1415927. It is a value, not a function: write `math.pi`, not `math.pi()`.",
+  "minArgs": 0,
+  "maxArgs": 0,
+  "returns": "number",
+  "example": "v.radians = v.degrees * math.pi / 180;",
+  "notes": [
+   "Molang's trig functions take and return degrees, so you rarely need π for them: `math.sin(90)` is 1, while `math.sin(math.pi)` is the sine of 3.14 degrees."
+  ]
+ },
+ {
+  "name": "pow",
+  "summary": "Raise a number to a power",
+  "description": "Returns `base` raised to `exponent`. A negative base with a fractional exponent gives NaN, and 0 to a negative power gives infinity.",
+  "args": [
+   {
+    "name": "base",
+    "type": "number",
+    "optional": false,
+    "description": "The base."
+   },
+   {
+    "name": "exponent",
+    "type": "number",
+    "optional": false,
+    "description": "The exponent."
+   }
+  ],
+  "minArgs": 2,
+  "maxArgs": 2,
+  "returns": "number",
+  "example": "math.pow(0.5, v.level)",
+  "notes": [
+   "`math.pow(-8, 1/3)` is NaN, not -2.",
+   "The last bit can differ between platforms, since the game uses the device's C library for this."
+  ]
+ },
+ {
+  "name": "random",
+  "summary": "Random decimal between low and high",
+  "description": "Returns a random decimal number from `low` up to (but, apart from rounding, not including) `high`. Each call draws a new value. `low` and `high` may be given in either order.",
+  "args": [
+   {
+    "name": "low",
+    "type": "number",
+    "optional": false,
+    "description": "Lower end of the range."
+   },
+   {
+    "name": "high",
+    "type": "number",
+    "optional": false,
+    "description": "Upper end of the range."
+   }
+  ],
+  "minArgs": 2,
+  "maxArgs": 2,
+  "returns": "number",
+  "example": "math.random(-0.2, 0.2)",
+  "notes": [
+   "Not an integer picker: `math.random(1, 6)` returns values like 3.8127. Use `math.random_integer` for whole numbers.",
+   "Contexts that disallow random numbers (block permutation conditions, block bone visibility) refuse expressions that call it."
+  ]
+ },
+ {
+  "name": "random_integer",
+  "summary": "Random whole number from low to high, both inclusive",
+  "description": "Returns a random whole number from `low` to `high`, **including both ends**, so `math.random_integer(1, 6)` behaves like a six-sided die. When `low` equals `high` that value is returned.",
+  "args": [
+   {
+    "name": "low",
+    "type": "number",
+    "optional": false,
+    "description": "Smallest possible result."
+   },
+   {
+    "name": "high",
+    "type": "number",
+    "optional": false,
+    "description": "Largest possible result."
+   }
+  ],
+  "minArgs": 2,
+  "maxArgs": 2,
+  "returns": "number",
+  "example": "math.random_integer(0, 3)",
+  "notes": [
+   "Both bounds are inclusive — unlike most languages' random-int functions.",
+   "Pass whole numbers: bounds are not rounded, so `math.random_integer(0.5, 3)` returns 0.5, 1.5 or 2.5.",
+   "Keep `low` ≤ `high`; reversed bounds do not swap and produce meaningless (often huge) values.",
+   "Contexts that disallow random numbers (block permutation conditions, block bone visibility) refuse expressions that call it."
+  ]
+ },
+ {
+  "name": "round",
+  "summary": "Round to the nearest whole number, halves away from zero",
+  "description": "Returns `value` rounded to the nearest whole number. Exact halves round away from zero: `math.round(2.5)` is 3 and `math.round(-2.5)` is -3.",
+  "args": [
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "Number to round."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.round(query.health / 2)",
+  "notes": [
+   "Halves go away from zero, not to the nearest even number."
+  ]
+ },
+ {
+  "name": "sign",
+  "summary": "1 for zero or positive input, -1 for negative input",
+  "description": "Returns -1 if `value` is negative and 1 otherwise. Zero counts as positive, so `math.sign(0)` is **1**, never 0.",
+  "args": [
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "Any number."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.sign(v.velocity) * 15",
+  "notes": [
+   "Never returns 0: testing `math.sign(v.x) == 0` never matches, and multiplying by it will not zero anything out.",
+   "Negative zero and NaN also give 1."
+  ]
+ },
+ {
+  "name": "sin",
+  "summary": "Sine of an angle given in degrees",
+  "description": "Returns the sine of `angle`, where `angle` is in **degrees** (not radians). The result is between -1 and 1. The conversion to radians is done in single precision, so values that should be exactly zero are not: `math.sin(180)` is about -8.7e-8.",
+  "args": [
+   {
+    "name": "angle",
+    "type": "number",
+    "optional": false,
+    "description": "Angle in degrees."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.sin(query.anim_time * 180) * 10",
+  "notes": [
+   "Takes degrees, not radians — multiply a 0..1 cycle by 360 for a full wave.",
+   "`math.sin(180)` and `math.sin(360)` are tiny negatives, not 0; `math.floor(math.sin(180))` is -1.",
+   "The last bit can differ between platforms, since the game uses the device's C library for this."
+  ]
+ },
+ {
+  "name": "sqrt",
+  "summary": "Square root",
+  "description": "Returns the square root of `value`. A negative input gives NaN — and NaN counts as *true* in conditions.",
+  "args": [
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "A non-negative number."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.sqrt(v.dx * v.dx + v.dz * v.dz)",
+  "notes": [
+   "`math.sqrt(-1) ? 1 : 2` is 1: only an exact 0 is false in Molang, and NaN is not 0."
+  ]
+ },
+ {
+  "name": "trunc",
+  "summary": "Drop the fractional part, rounding toward zero",
+  "description": "Returns `value` with its fractional part removed, rounding toward zero: `math.trunc(1.9)` is 1 and `math.trunc(-1.9)` is -1.",
+  "args": [
+   {
+    "name": "value",
+    "type": "number",
+    "optional": false,
+    "description": "Number to truncate."
+   }
+  ],
+  "minArgs": 1,
+  "maxArgs": 1,
+  "returns": "number",
+  "example": "math.trunc(v.offset)",
+  "notes": [
+   "Differs from `math.floor` for negative input."
+  ]
+ }
+]

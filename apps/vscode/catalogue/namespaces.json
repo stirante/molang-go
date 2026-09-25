@@ -1,0 +1,345 @@
+{
+ "operators": [
+  {
+   "token": "->",
+   "summary": "Read a variable or query of another entity",
+   "description": "`<entity> -> <read>` evaluates the right side as the entity on the left: `context.owning_entity->v.charge` reads the holder's public `v.charge`, and `t.e->q.health` asks entity `t.e` for its health. The left side is anything holding an entity reference — a `context.` entity, a variable storing one, or a `for_each` loop variable. If it does not hold an entity (a number, or an entity since removed) the whole arrow reads 0, the right side is skipped, and the expression carries on.",
+   "example": "v.n = 0; for_each(t.e, q.get_nearby_entities(8, 'minecraft:player'), { v.n = v.n + t.e->q.is_sneaking; });",
+   "notes": [
+    "The right side must be a single `variable.`/`query.` read or query call — not a temp, context value, math call, number or dotted name.",
+    "Arrows cannot be chained (`a->v.b->v.c`), written through (`c.x->v.y = 1;`), or used on the left of `??`.",
+    "Binds tighter than every other operator, including unary `-` and `!`.",
+    "Reading a variable the other entity has not made public gives 0 rather than ending the expression."
+   ]
+  },
+  {
+   "token": "??",
+   "summary": "Fallback when a variable, temp or context value is unset",
+   "description": "`a ?? b` gives `a` if it has been set and `b` if reading it failed because it was never set. It is not a NaN or zero check: a variable holding 0 or NaN returns that value. Only a bare `variable.`, `temp.` or `context.` name may stand on the left.",
+   "example": "v.count = (v.count ?? 0) + 1;",
+   "notes": [
+    "`q.x ?? 1`, `3 ?? 1`, `-v.x ?? 1` and `v.a.b ?? 1` do not load.",
+    "It groups to the left, so a chain must be parenthesised: write `v.a ?? (v.b ?? 0)`, not `v.a ?? v.b ?? 0`.",
+    "Binds looser than `? :` and tighter than `=`: `v.a ?? 1 ? 2 : 3` means `v.a ?? (1 ? 2 : 3)`."
+   ]
+  },
+  {
+   "token": "?:",
+   "summary": "Not an operator — Molang has no shorthand 'Elvis' form",
+   "description": "Writing `a ?: b` does not load: `?` must be followed by a value. To fall back when a variable is unset use `a ?? b`; to fall back when a value is zero write `a ? a : b`.",
+   "example": "v.speed ? v.speed : 1",
+   "notes": []
+  },
+  {
+   "token": "? :",
+   "summary": "Conditional: pick one of two values, or run a block if a condition holds",
+   "description": "`cond ? a : b` gives `a` when `cond` is non-zero and `b` otherwise. The `: b` part is optional — `cond ? a` gives 0 when false. Either arm can be a `{ ... }` block of statements, which makes it an if/else; chaining `: cond2 ? ... : ...` gives else-if.",
+   "example": "query.is_baby ? 0.5 : (query.is_sneaking ? 0.8 : 1.0)",
+   "notes": [
+    "Only exactly 0 is false. NaN is true: `math.sqrt(-1) ? 1 : 2` is 1.",
+    "A block arm yields 0 unless a `return` inside it runs.",
+    "A `??` inside a condition or arm needs parentheses."
+   ]
+  },
+  {
+   "token": "loop",
+   "summary": "Repeat a block a given number of times",
+   "description": "`loop(count, { ... });` runs the block `count` times. The count is evaluated once; a fractional count rounds up (`loop(2.5, ...)` runs three times) and 0, a negative count or NaN runs nothing. `break` leaves early and `continue` skips to the next pass.",
+   "example": "t.i = 0; t.sum = 0; loop(10, { t.i = t.i + 1; t.sum = t.sum + t.i; }); return t.sum;",
+   "notes": [
+    "Documentation commonly states a limit of 1024 iterations, but the game runs the full count; some tools cap it at 1024.",
+    "The body must be a `{ ... }` block."
+   ]
+  },
+  {
+   "token": "for_each",
+   "summary": "Run a block once for each entity in a list",
+   "description": "`for_each(<variable>, <list>, { ... });` walks a list of entities — usually returned by a query such as `query.get_nearby_entities` — assigning each one in turn to the loop variable (a `variable.` or `temp.` name) and running the block. Read each entity through `->`.",
+   "example": "v.close = 0; for_each(t.e, q.get_nearby_entities(6, 'minecraft:zombie'), { v.close = v.close + 1; });",
+   "notes": [
+    "Exactly three arguments; the first must be an assignable `v.`/`t.` name and the third a block.",
+    "After the loop, the variable still holds the last entity.",
+    "`break` and `continue` work as in `loop`; `return` ends the whole expression."
+   ]
+  },
+  {
+   "token": "break",
+   "summary": "Leave the innermost loop",
+   "description": "Stops the nearest enclosing `loop` or `for_each` immediately; execution continues after it.",
+   "example": "loop(10, { t.i = t.i + 1; t.i > 5 ? break; });",
+   "notes": [
+    "Must be inside a `loop` or `for_each` (at any depth, including inside a conditional); anywhere else the expression does not load."
+   ]
+  },
+  {
+   "token": "continue",
+   "summary": "Skip to the next pass of the innermost loop",
+   "description": "Ends the current pass of the nearest `loop` or `for_each` and starts the next one.",
+   "example": "loop(10, { t.i = t.i + 1; t.i == 3 ? continue; t.sum = t.sum + t.i; });",
+   "notes": [
+    "Outside a loop it still loads, and does nothing."
+   ]
+  },
+  {
+   "token": "return",
+   "summary": "End the expression and give its result",
+   "description": "`return <value>;` stops the whole expression — including from inside a loop or block — and makes `<value>` its result. An expression made of statements (with `;`) that never reaches a `return` evaluates to 0.",
+   "example": "v.a = 1; v.b = 2; return v.a + v.b;",
+   "notes": [
+    "Statements after a `return` in the same block are unreachable and stop the expression loading.",
+    "A single expression with no `;` does not need `return`: `1 + 2` is 3, but `1 + 2;` is 0."
+   ]
+  },
+  {
+   "token": "{}",
+   "summary": "Block: group statements",
+   "description": "`{ statement; statement; }` groups statements, as the body of `loop`/`for_each`, as a conditional arm, or on its own. A block's value is 0 unless a `return` inside it runs.",
+   "example": "query.is_on_ground ? { v.jumps = 0; v.airtime = 0; };",
+   "notes": [
+    "Every statement inside must end with `;`, even a single one: `{ v.a = 1 }` does not load.",
+    "An expression containing `=` or `;` must itself end with `;`."
+   ]
+  },
+  {
+   "token": ";",
+   "summary": "Statement separator",
+   "description": "Separates and ends statements. An expression containing `;` is a list of statements whose result is 0 unless a `return` runs; without any `;` it is a single expression whose value is the result.",
+   "example": "v.x = 1; return v.x * 2;",
+   "notes": [
+    "Any expression containing an assignment must end with `;`: `v.a = 1` alone does not load.",
+    "A trailing `;` throws the value away: `1 + 1;` is 0."
+   ]
+  },
+  {
+   "token": "'...'",
+   "summary": "String literal",
+   "description": "Text in **single** quotes, e.g. `'minecraft:player'`. Strings can be passed to queries, stored in variables and compared with `==`/`!=`; they cannot be used in arithmetic or math functions.",
+   "example": "v.mode = 'attack'; return v.mode == 'attack';",
+   "notes": [
+    "There are no escape sequences, so a string cannot contain a single quote.",
+    "Double quotes are not string delimiters in Molang."
+   ]
+  }
+ ],
+ "namespaces": [
+  {
+   "name": "query",
+   "summary": "Read-only values and functions the game provides about the current entity, block or world",
+   "description": "`query.<name>` asks the game for information, such as `query.health` or `query.is_on_ground`; some take arguments, e.g. `query.position(1)`. Queries cannot be assigned to. Which names exist depends on where the expression is written: most fields accept the general set, but some accept only a few (block permutation conditions and block bone visibility: only `query.block_state`; an entity property's default value: only `query.had_component_group`; `set_property` event values: only `query.property` and `query.has_property`; item/block tag expressions: only `query.all_tags` and `query.any_tag`; world-generation fields: only the world-generation queries such as `query.noise` and `query.heightmap`). An unknown or unavailable query name stops the expression loading.",
+   "assignable": false,
+   "example": "query.is_baby ? 0.5 : 1.0"
+  },
+  {
+   "name": "q",
+   "aliasOf": "query",
+   "summary": "Short form of query.",
+   "description": "Exactly the same as `query.` — `q.health` and `query.health` are the same read.",
+   "assignable": false,
+   "example": "q.is_on_ground"
+  },
+  {
+   "name": "math",
+   "summary": "Built-in math functions and the constant math.pi",
+   "description": "`math.<function>(...)` calls one of the built-in functions (trigonometry, rounding, interpolation, easing, random numbers), and `math.pi` is the constant π. All results are single-precision (float32). Trigonometric functions work in **degrees**, not radians. Arguments must be numbers: a string, a resource name or an assignment is refused. Each function takes a fixed number of arguments and a wrong count stops the expression loading.",
+   "assignable": false,
+   "example": "math.clamp(math.sin(query.anim_time * 360), -0.5, 0.5)",
+   "notes": [
+    "There is no `m.` short form — `m.sin(90)` does not load. Always write `math.`."
+   ]
+  },
+  {
+   "name": "variable",
+   "summary": "Named values stored on the entity (or other owner) that persist between evaluations",
+   "description": "`variable.<name>` is read-write storage owned by whatever runs the expression — for entities, the entity itself — so a value set in one expression (e.g. in `scripts.initialize` or an animation controller's `on_entry`) is still there for later ones. Reading a variable that has never been set does not give 0: it ends the expression at that point (nothing after it runs) unless the read is on the left of `??`. Other entities can read a variable through `->` only if the owning entity marks it public; otherwise they read 0.",
+   "assignable": true,
+   "example": "v.attack_time = (v.attack_time ?? 0) + query.delta_time;",
+   "notes": [
+    "Guard first reads with `??`: `v.count = (v.count ?? 0) + 1;`.",
+    "A name may contain further dots: `v.st.height` is one name, not a field of `v.st`. Assigning `v.b = v.a;` does copy every `v.a.<member>` to `v.b.<member>` as well."
+   ]
+  },
+  {
+   "name": "v",
+   "aliasOf": "variable",
+   "summary": "Short form of variable.",
+   "description": "Exactly the same storage as `variable.` — `v.speed` and `variable.speed` are one value.",
+   "assignable": true,
+   "example": "v.speed = 0.5;"
+  },
+  {
+   "name": "temp",
+   "summary": "Scratch values for intermediate results within an expression",
+   "description": "`temp.<name>` holds working values while an expression runs — loop counters, partial sums, a value you need twice. Treat temps as uninitialised at the start of every expression: they are not a reliable way to keep state between evaluations (use `variable.` for that), and in some systems a temp can also still hold a value left by an earlier expression, so don't rely on either behaviour. Like variables, reading a temp that has not been set ends the expression unless guarded with `??`.",
+   "assignable": true,
+   "example": "t.sum = 0; loop(4, { t.sum = t.sum + math.random(0, 1); }); return t.sum;",
+   "notes": [
+    "Only a single-part name can be assigned: `t.a = 1;` loads, `t.a.b = 1;` does not.",
+    "Temps are always your own: they cannot be read on the right of `->`."
+   ]
+  },
+  {
+   "name": "t",
+   "aliasOf": "temp",
+   "summary": "Short form of temp.",
+   "description": "Exactly the same storage as `temp.` — `t.i` and `temp.i` are one value.",
+   "assignable": true,
+   "example": "t.i = 0;"
+  },
+  {
+   "name": "context",
+   "summary": "Read-only inputs the game supplies for this particular kind of expression",
+   "description": "`context.<name>` reads a value the game hands to the expression for the situation it runs in — which block face was clicked, whether an attachable is drawn in first person, the entity holding an item. Context values cannot be assigned. Each name exists only where the game provides it; reading one elsewhere ends the expression like an unset variable (guard with `??`). Some context values are entity references, read with `->`, e.g. `context.owning_entity->v.charge`.",
+   "assignable": false,
+   "example": "context.is_first_person ? 0 : 1",
+   "knownNames": [
+    {
+     "name": "block_face",
+     "contexts": [
+      "block event triggers (on_interact, on_player_placing)",
+      "item on_use_on events"
+     ],
+     "description": "Which face of the block was clicked or placed against, as a number 0–5 (down, up, north, south, west, east)."
+    },
+    {
+     "name": "cardinal_block_face_placed_on",
+     "contexts": [
+      "block event triggers (on_interact, on_player_placing)"
+     ],
+     "description": "The face of the neighbouring block that the new block was placed against, for placement logic that depends on direction."
+    },
+    {
+     "name": "item_slot",
+     "contexts": [
+      "attachables"
+     ],
+     "description": "Which hand the attachable is being drawn for; compare it with a string such as 'main_hand' or 'off_hand'."
+    },
+    {
+     "name": "is_first_person",
+     "contexts": [
+      "attachables"
+     ],
+     "description": "1 when the attachable is being drawn in the first-person view, 0 otherwise."
+    },
+    {
+     "name": "owning_entity",
+     "contexts": [
+      "attachables"
+     ],
+     "description": "The entity holding or wearing the item. Read its variables and queries with `->`, e.g. `context.owning_entity->q.is_sneaking`."
+    },
+    {
+     "name": "player_offhand_arm_height",
+     "contexts": [
+      "first-person hand rendering"
+     ],
+     "description": "How far the player's off-hand arm is raised in the first-person view."
+    },
+    {
+     "name": "state_time",
+     "contexts": [
+      "animation controllers"
+     ],
+     "description": "How long, in seconds, the controller has been in its current state."
+    },
+    {
+     "name": "any_animation_finished",
+     "contexts": [
+      "animation controllers"
+     ],
+     "description": "1 once at least one animation playing in the current state has finished."
+    },
+    {
+     "name": "all_animations_finished",
+     "contexts": [
+      "animation controllers"
+     ],
+     "description": "1 once every animation playing in the current state has finished."
+    },
+    {
+     "name": "other",
+     "contexts": [
+      "item repair (minecraft:repairable repair_amount)"
+     ],
+     "description": "The item being used for the repair. Read it with `->`, e.g. `context.other->q.remaining_durability`."
+    },
+    {
+     "name": "move_distance",
+     "contexts": [
+      "script debug shapes"
+     ],
+     "description": "Distance value supplied with a script-drawn debug shape."
+    },
+    {
+     "name": "is_hidden",
+     "contexts": [
+      "script debug shapes"
+     ],
+     "description": "Whether a script-drawn debug shape is currently hidden."
+    }
+   ]
+  },
+  {
+   "name": "c",
+   "aliasOf": "context",
+   "summary": "Short form of context.",
+   "description": "Exactly the same as `context.` — `c.is_first_person` and `context.is_first_person` are the same read.",
+   "assignable": false,
+   "example": "c.item_slot == 'main_hand'"
+  },
+  {
+   "name": "array",
+   "summary": "Indexed lists of resources defined by a render controller",
+   "description": "`array.<name>[index]` picks one element of a list declared in a render controller's `arrays` section — typically a list of `Geometry.*`, `Material.*` or `Texture.*` names, used to choose a variant: `array.skins[query.variant]`. The index is truncated toward zero; an index past the end wraps around to the start, and any negative index reads the first element, so a read never fails. A bare `array.<name>` without `[index]` is not a value.",
+   "assignable": false,
+   "example": "array.skins[query.variant]",
+   "notes": [
+    "Only meaningful in render controllers.",
+    "There is no `a.` short form — the game does not accept `a.skins[0]`. Always write `array.`.",
+    "No bounds errors: an off-by-one silently reads a neighbouring (or wrapped-around) element.",
+    "An element cannot have a constant added, subtracted or multiplied onto it: `array.x[0] + 1` and `-array.x[0]` do not load."
+   ]
+  },
+  {
+   "name": "geometry",
+   "summary": "Names a geometry declared by the client entity, for use in render controllers",
+   "description": "`geometry.<name>` refers to an entry in the client entity's `geometry` map by its short name (e.g. `geometry.default`). It is a name, not a number: it can be returned, stored, chosen with `? :` and compared with `==`/`!=`, but not used in arithmetic or passed to math functions.",
+   "assignable": false,
+   "example": "query.is_baby ? geometry.baby : geometry.default",
+   "notes": [
+    "Only meaningful in render controllers."
+   ]
+  },
+  {
+   "name": "material",
+   "summary": "Names a material declared by the client entity, for use in render controllers",
+   "description": "`material.<name>` refers to an entry in the client entity's `materials` map by its short name (e.g. `material.default`). It is a name, not a number: it can be returned, stored, chosen with `? :` and compared with `==`/`!=`, but not used in arithmetic or passed to math functions.",
+   "assignable": false,
+   "example": "query.is_baby ? material.baby : material.default",
+   "notes": [
+    "Only meaningful in render controllers."
+   ]
+  },
+  {
+   "name": "texture",
+   "summary": "Names a texture declared by the client entity, for use in render controllers",
+   "description": "`texture.<name>` refers to an entry in the client entity's `textures` map by its short name (e.g. `texture.default`). It is a name, not a number: it can be returned, stored, chosen with `? :` and compared with `==`/`!=`, but not used in arithmetic or passed to math functions.",
+   "assignable": false,
+   "example": "query.is_baby ? texture.baby : texture.default",
+   "notes": [
+    "Only meaningful in render controllers."
+   ]
+  },
+  {
+   "name": "this",
+   "summary": "The current value of whatever this expression is computing, supplied by the game",
+   "description": "`this` is a keyword, not a namespace: it reads a single number the game provides for the field being evaluated — for example the value that field held before this expression runs, so the expression can adjust it instead of replacing it. What it means depends on the field; where nothing is provided it reads 0.",
+   "assignable": false,
+   "example": "this * 0.5",
+   "notes": [
+    "It has no members: `this.x` does not load.",
+    "It cannot be assigned: `this = 1;` does not load."
+   ]
+  }
+ ]
+}
