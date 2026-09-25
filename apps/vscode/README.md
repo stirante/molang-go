@@ -24,6 +24,8 @@ the words its content log would use.
 - **Signature help** inside query and math calls.
 - **Semantic highlighting**, and a TextMate grammar for `.molang` files.
 - **Formatting** of `.molang` files, and a **Molang: Minify** command.
+- **Molang: Show Molang regions in this file**: where the extension reads
+  Molang in the open file, outlined and listed, each with what found it.
 - **Outline** of the variables a `.molang` file uses.
 
 ## `.molang` files
@@ -46,6 +48,42 @@ and which operations it allows. JSON escapes are decoded first and every
 position mapped back, so `\"` and `é` inside an expression do not throw
 anything off.
 
+### Molang the schemas mark
+
+The JSON schemas VS Code applies to a file are read too: those other
+extensions contribute (Blockception's, for one), those in the `json.schemas`
+setting, and the file's own `$schema`, matched to the file by VS Code's own
+rules. Wherever a schema marks a string as Molang -- `"format": "molang"`, a
+title starting "Molang", a reference to Mojang's `Expression Node.json` or
+`Molang string.json`, the `{"expression", "version"}` object form -- and the
+shipped path catalogue has no entry for it, the string is read as Molang as
+well. The catalogue always wins: a field it knows is read as the kind it
+gives, and a field it has removed or declared not Molang stays that way. A
+schema cannot say which kind of Molang a field holds, so these are read as
+general Molang (world generation Molang in feature, feature rule and biome
+files).
+
+This never delays diagnostics: a file is checked against the catalogue as
+it opens, and again if its schemas add anything. Schemas are read once and
+kept; a remote one is fetched with a short timeout, not at all when
+`json.schemaDownload.enable` is off. `molang.json.schemaDetection` turns the
+whole thing off, and **Molang: Show Molang regions in this file** shows
+which strings came from the catalogue and which from a schema.
+
+### Versions
+
+Some queries exist only in files read at certain versions: added in one,
+removed in a later one. A pack JSON file's Molang is taken to be read at the
+file's `format_version`, and a query outside its versions is reported as
+not resolving. This is a best-effort rule, applied to behaviour-pack files
+(entities, blocks, items, features, feature rules, biomes) and resource-pack
+client files (client entities, attachables, animations, animation
+controllers, render controllers, particles) alike. Geometry is the exception:
+its `format_version` is the geometry format's own. A file without a
+`format_version`, and every `.molang` file, is read at no version, so no
+query is refused for its version. `molang.versionSource` set to `ignore`
+turns the version checks off.
+
 ## Alongside Blockception
 
 Blockception's extension has Molang support of its own. Diagnostics, completion
@@ -61,7 +99,9 @@ Blockception's own JSON completion is on. Both are settings:
 | --- | --- |
 | `molang.catalogue.path` | A `catalogue.json` to use instead of the shipped one. |
 | `molang.diagnostics.unknownQueries` | Severity for a query that does not resolve. |
+| `molang.versionSource` | `format_version` (the default) or `ignore`. |
 | `molang.json.enabled` | Molang features inside JSON files. |
+| `molang.json.schemaDetection` | Also read the Molang JSON schemas mark. |
 | `molang.json.completion` | `auto`, `on` or `off`. |
 | `molang.json.semanticTokens` | `auto`, `on` or `off`. |
 

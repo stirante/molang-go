@@ -30,13 +30,29 @@ export type Toggle = 'auto' | 'on' | 'off';
 
 export interface Settings {
   unknownQueries: 'default' | 'error' | 'warning' | 'information' | 'hint' | 'off';
+  /**
+   * Where a document's Molang version comes from, for version-gated
+   * queries: its format_version, or nowhere, which skips the gates.
+   */
+  versionSource: 'format_version' | 'ignore';
   json: { enabled: boolean; completion: Toggle; semanticTokens: Toggle };
 }
 
 export const defaultSettings: Settings = {
   unknownQueries: 'default',
+  versionSource: 'format_version',
   json: { enabled: true, completion: 'auto', semanticTokens: 'auto' },
 };
+
+/** A region as the regions command lists it: document offsets and provenance. */
+export interface RegionInfo {
+  start: number;
+  end: number;
+  kind: string;
+  source: 'catalogue' | 'schema' | 'file';
+  label?: string;
+  version?: string;
+}
 
 /**
  * What the client knows about its surroundings that the server cannot see:
@@ -131,7 +147,22 @@ export class MolangService {
   private optionsFor(region: MolangRegion): AnalyzeOptions {
     const opts: AnalyzeOptions = { ...region.options };
     if (this.settings.unknownQueries !== 'default') opts.unknownQueries = this.settings.unknownQueries;
+    if (this.settings.versionSource === 'format_version' && region.version) opts.version = region.version;
     return opts;
+  }
+
+  /** The document's Molang regions, where they are and what found them. */
+  regions(doc: TextDocument): RegionInfo[] {
+    const a = this.analyze(doc);
+    if (!a) return [];
+    return a.regions.map(({ region }) => ({
+      start: region.hostStart,
+      end: region.hostEnd,
+      kind: region.kind,
+      source: region.source ?? 'file',
+      label: region.label,
+      version: region.version,
+    }));
   }
 
   diagnostics(doc: TextDocument): Diagnostic[] {

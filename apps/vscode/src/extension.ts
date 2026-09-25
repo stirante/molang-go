@@ -1,9 +1,13 @@
-// The extension: starts the language server and adds the one command the
-// protocol has no request for. All language features are the server's.
+// The extension: starts the language server, adds the commands the protocol
+// has no request for, and finds the Molang the JSON schemas of open
+// documents mark, which only the extension host can read. All language
+// features are the server's.
 
 import * as vscode from 'vscode';
 import { LanguageClient, TransportKind, type LanguageClientOptions, type ServerOptions } from 'vscode-languageclient/node';
 import { blockceptionState } from './client/blockception';
+import { registerRegionsCommand } from './client/regionsCommand';
+import { SchemaIndex } from './client/schemaIndex';
 
 let client: LanguageClient | undefined;
 
@@ -32,8 +36,16 @@ export async function activate(context: vscode.ExtensionContext) {
   client = new LanguageClient('molang', 'Molang', serverOptions, clientOptions);
   await client.start();
 
+  const schemas = new SchemaIndex(
+    (p) => void client?.sendNotification('molang/schemaPaths', p),
+    (m) => client?.outputChannel.appendLine(`molang: ${m}`),
+  );
+  schemas.refreshAll();
+
   const sendEnvironment = () => client?.sendNotification('molang/environment', blockceptionState());
   context.subscriptions.push(
+    schemas,
+    registerRegionsCommand(() => client, schemas),
     vscode.extensions.onDidChange(sendEnvironment),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('BC-MC')) sendEnvironment();

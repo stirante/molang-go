@@ -202,6 +202,34 @@ describe('Molang in animation controller JSON', () => {
   });
 });
 
+describe("a JSON file's Molang version", () => {
+  const at = (version: string | undefined) =>
+    JSON.stringify({
+      ...(version ? { format_version: version } : {}),
+      animation_controllers: { 'controller.animation.v': { states: { default: { transitions: [{ b: 'q.is_feeling_happy' }] } } } },
+    });
+  const codes = (text: string) => service.diagnostics(json(text)).map((d) => [d.code, d.message]);
+
+  it('gates queries by the format_version', () => {
+    // is_feeling_happy resolves only in files read below 1.20.50.
+    expect(codes(at('1.21.0'))).toEqual([['query-version', expect.stringContaining('removed in 1.20.50')]]);
+    expect(codes(at('1.20.40')).filter(([c]) => c === 'query-version')).toEqual([]);
+    expect(codes(at(undefined)).filter(([c]) => c === 'query-version')).toEqual([]);
+  });
+
+  it('skips the gates when told to ignore versions', () => {
+    const before = service.settings;
+    try {
+      service.settings = { ...before, versionSource: 'ignore' };
+      service.invalidate();
+      expect(codes(at('1.21.0')).filter(([c]) => c === 'query-version')).toEqual([]);
+    } finally {
+      service.settings = before;
+      service.invalidate();
+    }
+  });
+});
+
 // Every Molang string in Mojang's vanilla packs must analyse without an
 // error or a warning. Point MOLANG_VANILLA at a directory of vanilla pack
 // JSON (a bedrock-samples checkout, say) to run it -- it is not run

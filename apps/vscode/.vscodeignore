@@ -7,6 +7,7 @@
 !syntaxes/**
 !catalogue/**
 !data/molang-paths.json
+!data/molang-paths.overrides.json
 !language-configuration.json
 !package.json
 !README.md

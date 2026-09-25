@@ -1,0 +1,12 @@
+{
+  "format_version": "1.21.0",
+  "animation_controllers": {
+    "controller.animation.gated": {
+      "states": {
+        "default": {
+          "transitions": [{ "happy": "q.is_feeling_happy" }]
+        }
+      }
+    }
+  }
+}

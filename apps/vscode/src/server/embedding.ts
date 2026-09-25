@@ -38,6 +38,16 @@
 // And per kind: an event_response may be a /command or an @s event instead
 // of Molang, and a string_or_molang field may be a plain string ("unrolled")
 // rather than an expression; neither is analysed then.
+//
+// The JSON schemas the editor applies to a document are a second source of
+// paths (see client/schemaIndex.ts), per document, merged UNDER the
+// catalogue: a string the catalogue has an entry for is read as the
+// catalogue says, and one the catalogue has removed or declared not Molang
+// stays that way, whatever a schema marks. A schema adds only paths the
+// catalogue does not know -- a custom schema's fields, a field the curated
+// data has not caught up with. A schema never says which kind of Molang a
+// field is, so those are read as "general", or as "worldgen" under a world
+// generation root key, where the default query set would be wrong.
 
 import { parseTree, type Node } from 'jsonc-parser';
 import type { AnalyzeOptions } from './bridge';
@@ -64,6 +74,36 @@ export interface FileType {
 export interface PathCatalogue {
   version?: number;
   fileTypes: FileType[];
+  /**
+   * Paths no source may treat as Molang: those the curated data removes
+   * from what a schema marks, or declares not Molang. Only schema paths are
+   * held to it; the catalogue already leaves them out.
+   */
+  notMolang?: { rootKey: string; path: string }[];
+}
+
+/** Where a region's path came from, for the regions command. */
+export type PathSource = 'catalogue' | 'schema';
+
+/**
+ * The shipped path catalogue with the curated removals of its overrides file
+ * (data/molang-paths.overrides.json: "remove" and "notMolang") attached as
+ * notMolang, so schema-driven paths respect them too.
+ */
+export function composePaths(pathsJson: string, overridesJson?: string): PathCatalogue {
+  const paths = JSON.parse(pathsJson) as PathCatalogue;
+  if (!overridesJson) return paths;
+  const overrides = JSON.parse(overridesJson) as Record<string, unknown>;
+  const notMolang = [...(paths.notMolang ?? [])];
+  for (const list of [overrides.remove, overrides.notMolang]) {
+    if (!Array.isArray(list)) continue;
+    for (const e of list as { rootKey?: string; rootKeys?: string[]; path?: string; paths?: string[] }[]) {
+      const roots = e.rootKeys ?? (e.rootKey ? [e.rootKey] : []);
+      const ps = e.paths ?? (e.path ? [e.path] : []);
+      for (const rootKey of roots) for (const path of ps) notMolang.push({ rootKey, path });
+    }
+  }
+  return { ...paths, notMolang };
 }
 
 /** The fallback: animation controllers, as the full catalogue lists them. */
@@ -165,35 +205,109 @@ export const JSON_LANGUAGE_IDS = ['json', 'jsonc', 'json5'];
 
 interface CompiledEntry extends PathEntry {
   segments: Segment[];
+  source: PathSource;
 }
 
 interface CompiledType {
   rootKey: string;
   entries: CompiledEntry[];
+  /**
+   * Every catalogue pattern under the root key, whatever its version range
+   * or target, and the curated not-Molang paths: what a schema path may
+   * not override.
+   */
+  claimed: Segment[][];
+}
+
+/** The schema-driven paths of one document. */
+interface SchemaPaths {
+  byRoot: Map<string, CompiledEntry[]>;
+  schemas: string[];
+  json: string;
+}
+
+/**
+ * Root keys whose Molang is world generation's: a schema-added path there
+ * resolves the worldgen query set rather than the default one.
+ */
+export function isWorldgenRoot(rootKey: string): boolean {
+  return /_feature$/.test(rootKey) || ['minecraft:feature_rules', 'minecraft:biome', 'minecraft:conditional_list'].includes(rootKey);
+}
+
+/**
+ * Whether a document's format_version is the version its Molang is read
+ * at, for the catalogue's version gates. A best-effort mapping, not a rule
+ * the game documents: behaviour-pack files (entities, blocks, items,
+ * features, feature rules, biomes) and resource-pack client files (client
+ * entities, attachables, animations, animation controllers, render
+ * controllers, particles) are taken to read their Molang at their own
+ * format_version, and a file without one at no version, which skips the
+ * gates. The exception is geometry, whose format_version is the version of
+ * the geometry format, a sequence of its own (1.12.0, 1.16.0, 1.21.0).
+ */
+export function versionGoverned(rootKey: string): boolean {
+  return rootKey !== 'minecraft:geometry';
 }
 
 export class JsonPathProvider implements MolangRegionProvider {
   readonly id = 'json-path';
   private readonly byRoot = new Map<string, CompiledType>();
+  private readonly schemaPaths = new Map<string, SchemaPaths>();
+  /** Whether schema-driven paths are used at all (molang.json.schemaDetection). */
+  useSchemas = true;
 
   constructor(catalogue: PathCatalogue = builtinPaths) {
+    const typeFor = (rootKey: string) => {
+      let t = this.byRoot.get(rootKey);
+      if (!t) this.byRoot.set(rootKey, (t = { rootKey, entries: [], claimed: [] }));
+      return t;
+    };
     for (const ft of catalogue.fileTypes) {
-      const entries = ft.paths
+      const type = typeFor(ft.rootKey);
+      for (const e of ft.paths) {
+        const segments = compilePattern(e.path);
+        type.claimed.push(segments);
         // A key names a variable being declared; it is not an expression.
-        .filter((e) => e.target !== 'key')
-        .map((e) => ({ ...e, segments: compilePattern(e.path) }));
-      const existing = this.byRoot.get(ft.rootKey);
-      if (existing) existing.entries.push(...entries);
-      else this.byRoot.set(ft.rootKey, { rootKey: ft.rootKey, entries });
+        if (e.target !== 'key') type.entries.push({ ...e, segments, source: 'catalogue' });
+      }
     }
+    for (const n of catalogue.notMolang ?? []) typeFor(n.rootKey).claimed.push(compilePattern(n.path));
+  }
+
+  /**
+   * Sets the paths the schemas applied to a document mark as Molang, and
+   * the schemas' URIs; an empty list clears them. Returns whether anything
+   * changed, so the caller re-checks the document only when it did.
+   */
+  setSchemaPaths(uri: string, fileTypes: FileType[], schemas: string[]): boolean {
+    const json = JSON.stringify([fileTypes, schemas]);
+    const old = this.schemaPaths.get(uri);
+    if (old ? old.json === json : fileTypes.length === 0) return false;
+    if (fileTypes.length === 0) {
+      this.schemaPaths.delete(uri);
+      return true;
+    }
+    const byRoot = new Map<string, CompiledEntry[]>();
+    for (const ft of fileTypes) {
+      const list = byRoot.get(ft.rootKey) ?? [];
+      const kind = isWorldgenRoot(ft.rootKey) ? 'worldgen' : 'general';
+      for (const e of ft.paths) {
+        if (e.target === 'key') continue;
+        list.push({ ...e, kind, joined: false, segments: compilePattern(e.path), source: 'schema' });
+      }
+      byRoot.set(ft.rootKey, list);
+    }
+    this.schemaPaths.set(uri, { byRoot, schemas, json });
+    return true;
   }
 
   provideRegions(doc: RegionSource): MolangRegion[] | undefined {
     if (!JSON_LANGUAGE_IDS.includes(doc.languageId)) return undefined;
     const text = doc.getText();
+    const schema = this.useSchemas ? this.schemaPaths.get(doc.uri) : undefined;
     // Cheap test first: most JSON a user opens is not a pack file at all.
-    let mentioned = false;
-    for (const root of this.byRoot.keys()) {
+    let mentioned = !!schema;
+    for (const root of mentioned ? [] : this.byRoot.keys()) {
       if (text.includes(`"${root}"`)) {
         mentioned = true;
         break;
@@ -203,46 +317,57 @@ export class JsonPathProvider implements MolangRegionProvider {
     const tree = parseTree(text, [], { allowTrailingComma: true, disallowComments: false });
     if (!tree || tree.type !== 'object') return undefined;
     let formatVersion: string | undefined;
-    const roots: { type: CompiledType; node: Node }[] = [];
+    const roots: { rootKey: string; type?: CompiledType; schemaEntries: CompiledEntry[]; node: Node }[] = [];
     for (const prop of tree.children ?? []) {
       const [k, v] = prop.children ?? [];
-      if (!k || !v) continue;
-      if (k.value === 'format_version' && typeof v.value === 'string') formatVersion = v.value;
-      const type = typeof k.value === 'string' ? this.byRoot.get(k.value) : undefined;
-      if (type) roots.push({ type, node: v });
+      if (!k || !v || typeof k.value !== 'string') continue;
+      const key = k.value;
+      if (key === 'format_version' && typeof v.value === 'string') formatVersion = v.value;
+      const type = this.byRoot.get(key);
+      const schemaEntries =
+        schema && key !== 'format_version' && key !== '$schema'
+          ? [...(schema.byRoot.get(key) ?? []), ...(schema.byRoot.get('*') ?? [])]
+          : [];
+      if (type?.entries.length || schemaEntries.length) roots.push({ rootKey: key, type, schemaEntries, node: v });
     }
     if (roots.length === 0) return undefined;
 
     // Regions in document order. A joined array is one entry, placed where
     // its first string is, gathering its strings as the walk meets them.
-    type Group = { entry: CompiledEntry; label: string; parts: Node[] };
+    type Group = { entry: CompiledEntry; label: string; parts: Node[]; version?: string };
     const items: ({ region: MolangRegion } | { group: Group })[] = [];
     const groups = new Map<Node, Group>();
-    for (const { type, node } of roots) {
-      const entries = type.entries.filter((e) => inVersion(e, formatVersion));
+    for (const { rootKey, type, schemaEntries, node } of roots) {
+      const entries = (type?.entries ?? []).filter((e) => inVersion(e, formatVersion));
+      const claimed = type?.claimed ?? [];
+      const version = versionGoverned(rootKey) ? formatVersion : undefined;
       walk(node, [], (n, path) => {
-        const entry = entries.find((e) => matchPattern(e.segments, path));
+        let entry = entries.find((e) => matchPattern(e.segments, path));
+        if (!entry && schemaEntries.length && !claimed.some((c) => matchPattern(c, path))) {
+          entry = schemaEntries.find((e) => matchPattern(e.segments, path));
+        }
         if (!entry) return;
         const str = sourceNode(n, entry);
         if (!str) return;
-        const label = `${type.rootKey}/${path.map((p) => (typeof p === 'number' ? `[${p}]` : p)).join('/')}`;
+        const label = `${rootKey}/${path.map((p) => (typeof p === 'number' ? `[${p}]` : p)).join('/')}`;
         if (entry.joined && n.parent?.type === 'array') {
           let group = groups.get(n.parent);
           if (!group) {
-            group = { entry, label: label.replace(/\/\[\d+\]$/, ''), parts: [] };
+            group = { entry, label: label.replace(/\/\[\d+\]$/, ''), parts: [], version };
             groups.set(n.parent, group);
             items.push({ group });
           }
           group.parts.push(str);
           return;
         }
-        const region = stringRegion(text, str, entry, label);
+        const region = stringRegion(text, str, entry, label, version);
         if (region) items.push({ region });
       });
     }
     const regions: MolangRegion[] = [];
     for (const item of items) {
-      const region = 'region' in item ? item.region : joinedRegion(text, item.group.parts, item.group.entry, item.group.label);
+      const g = 'group' in item ? item.group : undefined;
+      const region = g ? joinedRegion(text, g.parts, g.entry, g.label, g.version) : 'region' in item ? item.region : undefined;
       if (region) regions.push(region);
     }
     return regions;
@@ -316,12 +441,12 @@ function isMolangValue(value: string, entry: PathEntry): boolean {
   return true;
 }
 
-function stringRegion(text: string, node: Node, entry: PathEntry, label: string): MolangRegion | undefined {
+function stringRegion(text: string, node: Node, entry: CompiledEntry, label: string, version?: string): MolangRegion | undefined {
   const options = optionsFor(entry.kind, entry.path);
   if (!options) return undefined;
   const piece = decodePiece(text, node, 0);
   if (!isMolangValue(piece.decoded.value, entry)) return undefined;
-  return piecesRegion([piece], piece.decoded.value, entry.kind as MolangKind, options, label);
+  return piecesRegion([piece], piece.decoded.value, entry, options, label, version);
 }
 
 /**
@@ -330,7 +455,7 @@ function stringRegion(text: string, node: Node, entry: PathEntry, label: string)
  * string before it: whitespace, so tokens in neighbouring strings cannot
  * run together, and a position no diagnostic lands in on its own.
  */
-function joinedRegion(text: string, parts: Node[], entry: PathEntry, label: string): MolangRegion | undefined {
+function joinedRegion(text: string, parts: Node[], entry: CompiledEntry, label: string, version?: string): MolangRegion | undefined {
   const options = optionsFor(entry.kind, entry.path);
   if (!options || parts.length === 0) return undefined;
   const pieces: Piece[] = [];
@@ -341,16 +466,25 @@ function joinedRegion(text: string, parts: Node[], entry: PathEntry, label: stri
     pieces.push(piece);
     value += piece.decoded.value;
   }
-  return piecesRegion(pieces, value, entry.kind as MolangKind, options, label);
+  return piecesRegion(pieces, value, entry, options, label, version);
 }
 
-function piecesRegion(pieces: Piece[], value: string, kind: MolangKind, options: AnalyzeOptions, label: string): MolangRegion {
+function piecesRegion(
+  pieces: Piece[],
+  value: string,
+  entry: CompiledEntry,
+  options: AnalyzeOptions,
+  label: string,
+  version: string | undefined,
+): MolangRegion {
   const first = pieces[0];
   const last = pieces[pieces.length - 1];
   return {
     text: value,
-    kind,
+    kind: entry.kind as MolangKind,
     options,
+    source: entry.source,
+    version,
     hostStart: first.hostStart,
     hostEnd: last.hostEnd,
     toHost: (o) => {

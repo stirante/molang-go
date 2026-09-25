@@ -1,0 +1,8 @@
+{
+  "$schema": "./schemas/custom.schema.json",
+  "format_version": "1.21.0",
+  "my:custom_thing": {
+    "name": "not Molang",
+    "when": "v.ready && ;"
+  }
+}
