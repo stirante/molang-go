@@ -1,69 +1,118 @@
 # Molang
 
-Language support for [Molang](https://bedrock.dev/docs/stable/Molang), the
-expression language of Minecraft Bedrock add-ons, in `.molang` files and in the
-Molang inside pack JSON.
+Molang support for Minecraft Bedrock add-on creators: the mistakes the game
+would refuse, shown as you type, with completion and documentation for every
+query and math function. It works in `.molang` files and in the Molang inside
+your pack's JSON (animation controllers, client entities, render controllers,
+particles, entities, features and more), on the desktop and on vscode.dev.
 
-The analysis is [molang-go](https://github.com/stirante/molang-go) compiled to
-WebAssembly: the same parser and load-time rules that library is tested
-against, so a diagnostic here means the game would refuse the expression, in
-the words its content log would use.
+![A query the game does not know, underlined, with the content log's own message](media/diagnostics.png)
 
-## Features
+## What it does
 
-- **Diagnostics**: every syntax error in a document, not just the first;
-  unknown math functions and wrong math argument counts; queries that do not
-  resolve where they are written (outside the field's query set, or its fixed
-  list of queries); missing query arguments; deprecated queries; operations a
-  field refuses, such as assignment in a block condition.
-- **Completion** of namespaces, query and math functions with their
-  signatures, the variables and temps the file already uses, and what can
-  follow `->`.
-- **Hover** for queries and math functions, and for variables: where the file
-  writes them and how often it reads them.
-- **Signature help** inside query and math calls.
-- **Semantic highlighting**, and a TextMate grammar for `.molang` files.
-- **Formatting** of `.molang` files, and a **Molang: Minify** command.
-- **Outline** of the variables a `.molang` file uses.
+**Errors in the game's own words.** Every syntax error in an expression, not
+only the first; unknown queries and math functions; the wrong number of
+arguments; deprecated queries; and what a field does not allow, such as a
+query that only works in world generation used in an entity, or an
+assignment in a block condition. The messages are the ones the content log
+would print, so a search for one finds the same thing you would see in game.
+
+**Completion** of namespaces, queries and math functions with their
+signatures and documentation, the variables and temps the file already uses,
+and what can follow `->`.
+
+![Completing a query, with its documentation](media/completion.png)
+
+**Hover** for queries and math functions, and for variables: where the file
+writes them and how often it reads them. **Signature help** inside calls.
+
+![Hover on a math function](media/hover.png)
+
+**Molang in JSON.** Strings in pack JSON are recognised by where they are,
+the way the game reads them: which queries a field can use and which
+operations it allows. Escapes such as `\"` are handled, so an error points at
+the right character.
+
+![A syntax error inside an animation controller's on_entry](media/json.png)
+
+Also: semantic highlighting, a grammar for `.molang` files, **formatting**
+of `.molang` files, a **Molang: Minify** command, and an outline of the
+variables a file uses.
+
+### Files it reads
+
+- `.molang` files.
+- Resource pack JSON: animation controllers, animations, render
+  controllers, client entities, attachables, particles, geometry and entity
+  sounds.
+- Behavior pack JSON: entities, blocks, items, biomes, feature rules,
+  features and processor lists.
+
+JSON files are recognised by their root key (`animation_controllers`,
+`minecraft:client_entity`, ...), whatever folder they are in.
 
 ## `.molang` files
 
-Molang has no comments, so the convention the ecosystem's tools share applies:
-`#` starts a comment to the end of the line. `#{ ... }` is a jsonte template,
-not a comment; it is left for jsonte and read as a value. Files the
-Blockception extension claims (language `bc-minecraft-molang`) get the same
-features.
+Molang has no comments, so the convention the community's tools share
+applies: `#` starts a comment to the end of the line. `#{ ... }` is a jsonte
+template, not a comment; it is left for jsonte.
 
-Formatting and minifying print the file from its syntax tree, which keeps no
+Formatting and minifying rebuild the file from its syntax, which keeps no
 comments, so a file with comments or templates is left as it is.
 
-## Molang in JSON
+## With Blockception's extension
 
-Molang strings in pack JSON are found by path under the document's root key
-(`animation_controllers`, `minecraft:client_entity`, ...), whatever folder the
-file is in, and read as the game reads that field: which queries it can name
-and which operations it allows. JSON escapes are decoded first and every
-position mapped back, so `\"` and `é` inside an expression do not throw
-anything off.
+[Blockception's Minecraft Bedrock Development extension](https://marketplace.visualstudio.com/items?itemName=BlockceptionLtd.blockceptionvscodeminecraftbedrockdevelopmentextension)
+covers far more of an add-on than Molang, and it has Molang support of its
+own. The two can be installed together, and this extension is built for
+that:
 
-## Alongside Blockception
+- Diagnostics and hovers from both are shown. Where both report the same
+  mistake you will see it twice; Blockception can be told to stop reporting
+  its Molang codes in a project's `.mcattributes`
+  (`diagnostic.disable.<code>=true`).
+- Highlighting cannot be shared, so in JSON this extension leaves it to
+  Blockception while Blockception is installed
+  (`molang.json.semanticTokens`).
+- Completion in JSON is left to Blockception while its own JSON completion is
+  on, so the list is not doubled (`molang.json.completion`).
+- `.molang` files that Blockception claims get this extension's features too.
 
-Blockception's extension has Molang support of its own. Diagnostics, completion
-and hover from both extensions are shown together. Semantic highlighting cannot
-be shared, so in JSON this extension leaves it to Blockception while that is
-installed, and it leaves completion inside JSON to Blockception while
-Blockception's own JSON completion is on. Both are settings:
-`molang.json.semanticTokens` and `molang.json.completion`.
+What this extension adds alongside it is the checking: an expression is read
+by the same rules the game loads it with, and what it reports is what the
+game would refuse.
+
+## In the browser
+
+On [vscode.dev](https://vscode.dev) and github.dev everything works as on
+the desktop, except `molang.catalogue.path`: a web extension cannot read a
+file by path, so the shipped catalogue is always used there.
 
 ## Settings
 
 | Setting | |
 | --- | --- |
 | `molang.catalogue.path` | A `catalogue.json` to use instead of the shipped one. |
-| `molang.diagnostics.unknownQueries` | Severity for a query that does not resolve. |
+| `molang.diagnostics.unknownQueries` | Severity for a query that does not resolve; `default` is an error, as the game refuses the expression. |
 | `molang.json.enabled` | Molang features inside JSON files. |
 | `molang.json.completion` | `auto`, `on` or `off`. |
 | `molang.json.semanticTokens` | `auto`, `on` or `off`. |
+
+## How it works
+
+The analysis is [molang-go](https://github.com/stirante/molang-go), a Molang
+implementation in Go, compiled to WebAssembly and run inside the extension:
+nothing is sent anywhere, and there is nothing else to install. The query
+catalogue ships with the extension and names the game version it describes.
+
+Found an expression the game accepts and this extension refuses, or the
+other way round? That is a bug; please
+[open an issue](https://github.com/stirante/molang-go/issues) with the
+expression and where it was written.
+
+## License
+
+MIT; see [LICENSE](LICENSE). Not affiliated with Mojang or Microsoft.
 
 ## Building
 
@@ -74,5 +123,9 @@ npm install
 npm run build        # the WebAssembly module and the bundles
 npm test             # unit tests, over the real module
 npm run test:integration   # in a downloaded VS Code; opens a window
+npm run test:web     # the web build in VS Code for the Web, headless Chromium
 npm run package      # molang.vsix
 ```
+
+`node scripts/make-icon.mjs` redraws the icon and `node scripts/screenshots.mjs`
+retakes the pictures above, from the built extension.

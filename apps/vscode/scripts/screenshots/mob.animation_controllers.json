@@ -1,0 +1,18 @@
+{
+  "format_version": "1.10.0",
+  "animation_controllers": {
+    "controller.animation.mob.attack": {
+      "initial_state": "idle",
+      "states": {
+        "idle": {
+          "transitions": [{ "attacking": "q.is_delayed_attacking && v.cooldown <= 0" }]
+        },
+        "attacking": {
+          "animations": ["attack"],
+          "on_entry": ["v.cooldown = math.random(20, 40;"],
+          "transitions": [{ "idle": "q.all_animations_finished" }]
+        }
+      }
+    }
+  }
+}

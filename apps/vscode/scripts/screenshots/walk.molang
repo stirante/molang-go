@@ -1,0 +1,4 @@
+# Walk cycle: the leg swing, eased toward the current speed
+v.walk = math.lerp(v.walk ?? 0, q.modified_move_speed, 0.2);
+t.phase = math.mod(q.life_time * v.walk * 8, 360);
+return math.sin(t.phase) * 30 * (q.is_sneakin ? 0.5 : 1);

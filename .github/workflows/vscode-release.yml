@@ -1,0 +1,89 @@
+name: Release the VS Code extension
+
+# Pushing a tag vscode-v<version> (vscode-v0.1.0) builds the extension,
+# publishes it to the Visual Studio Marketplace and Open VSX, and attaches
+# the .vsix to a GitHub release for the tag.
+#
+# Secrets, set in the repository's Actions secrets:
+#   VSCE_PAT  an Azure DevOps personal access token with the Marketplace
+#             (Manage) scope, for the publisher in apps/vscode/package.json.
+#   OVSX_PAT  an open-vsx.org access token for the same namespace (create the
+#             namespace once with `npx ovsx create-namespace <publisher>`).
+# A registry whose secret is not set is skipped, not failed, so a release can
+# go out before both accounts exist.
+
+on:
+  push:
+    tags:
+      - "vscode-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "An existing tag to release, e.g. vscode-v0.1.0"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/vscode
+    # At job level so the steps' `if` can see whether they are set: a step's
+    # own env is not visible to its condition.
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      # The registries read the version from package.json, not from the tag;
+      # a tag that disagrees would publish under a different version from
+      # the release it names.
+      - name: Check the tag matches the extension version
+        run: |
+          version="vscode-v$(node -p "require('./package.json').version")"
+          if [ "$version" != "$RELEASE_TAG" ]; then
+            echo "::error::tag $RELEASE_TAG does not match apps/vscode/package.json version ($version)"
+            exit 1
+          fi
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/vscode/package-lock.json
+
+      - run: npm ci
+
+      # Unit tests only: the release is cut from a commit CI has already
+      # run in full.
+      - run: npm test
+
+      - name: Package
+        run: npm run package
+
+      - name: Publish to the Visual Studio Marketplace
+        if: env.VSCE_PAT != ''
+        run: npx vsce publish --no-dependencies --packagePath molang.vsix
+
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        run: npx --yes ovsx@0 publish molang.vsix --pat "$OVSX_PAT"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: apps/vscode/molang.vsix
+          fail_on_unmatched_files: true

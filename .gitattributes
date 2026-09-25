@@ -17,3 +17,7 @@ testdata/*.json text eol=lf
 *.yaml text eol=lf
 .gitignore text eol=lf
 .gitattributes text eol=lf
+
+# The extension's integration tests compare formatted .molang output with an
+# LF string; a CRLF checkout of the fixtures fails them on Windows only.
+*.molang text eol=lf
