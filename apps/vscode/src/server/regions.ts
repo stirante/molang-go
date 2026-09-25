@@ -78,6 +78,16 @@ export interface MolangRegion {
   readonly inert: readonly Span[];
   /** Where the region is, for messages: a JSON path, or undefined. */
   readonly label?: string;
+  /**
+   * What said this is Molang: the path catalogue or a JSON schema applied
+   * to the document. Undefined for a .molang file, which is all Molang.
+   */
+  readonly source?: 'catalogue' | 'schema';
+  /**
+   * The version the document's Molang is read at, for version-gated
+   * queries, when the document states one (see embedding.versionGoverned).
+   */
+  readonly version?: string;
 }
 
 /** The minimum of a document a provider needs. */

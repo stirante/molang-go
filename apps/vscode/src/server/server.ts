@@ -7,10 +7,10 @@ import type { Connection, InitializeResult, TextDocuments } from 'vscode-languag
 import type { TextDocument } from 'vscode-languageserver-textdocument';
 import type { MolangEngine } from './bridge';
 import { Catalogue } from './catalogue';
-import { builtinPaths, JsonPathProvider, type PathCatalogue } from './embedding';
+import { builtinPaths, composePaths, JsonPathProvider, type FileType, type PathCatalogue } from './embedding';
 import { MolangFileProvider } from './regions';
 import { TOKEN_MODIFIERS, TOKEN_TYPES } from './semantic';
-import { MolangService, defaultSettings, type Environment, type Settings } from './service';
+import { MolangService, defaultSettings, type Environment, type RegionInfo, type Settings } from './service';
 
 export interface ServerHost {
   connection: Connection;
@@ -24,6 +24,11 @@ export interface ServerHost {
    * built-in entries are to be used.
    */
   loadPaths(): Promise<string | undefined>;
+  /**
+   * The curated overrides beside it (data/molang-paths.overrides.json),
+   * whose removals hold schema-driven paths back too; undefined for none.
+   */
+  loadPathOverrides?(): Promise<string | undefined>;
   /** Milliseconds since the server process started, for the startup log. */
   uptime(): number;
   /**
@@ -38,7 +43,8 @@ export interface ServerHost {
 interface ClientSettings {
   catalogue?: { path?: string };
   diagnostics?: { unknownQueries?: Settings['unknownQueries'] };
-  json?: Partial<Settings['json']>;
+  versionSource?: Settings['versionSource'];
+  json?: Partial<Settings['json']> & { schemaDetection?: boolean };
 }
 
 export interface InitializationOptions {
@@ -57,6 +63,25 @@ export interface PrintParams {
 export type PrintResponse = { text?: string; error?: string };
 export const EnvironmentNotification = 'molang/environment';
 
+/**
+ * From the client: the Molang paths the JSON schemas applied to a document
+ * mark, found by walking them in the extension host (client/schemaIndex.ts),
+ * which is where the associations and the schemas can be read. An empty
+ * fileTypes clears them.
+ */
+export const SchemaPathsNotification = 'molang/schemaPaths';
+export interface SchemaPathsParams {
+  uri: string;
+  fileTypes: FileType[];
+  schemas: string[];
+}
+
+/** The Molang regions of a document, for the regions command. */
+export const RegionsRequest = 'molang/regions';
+export interface RegionsResponse {
+  regions: RegionInfo[];
+}
+
 // TextDocumentSyncKind.Incremental, spelled out: the protocol package's
 // runtime values come with a Node transport attached.
 const INCREMENTAL_SYNC = 2;
@@ -65,15 +90,21 @@ export function startServer(host: ServerHost) {
   const { connection, documents } = host;
   let service: Promise<MolangService> | undefined;
   let settings = defaultSettings;
+  let schemaDetection = true;
+  let paths: JsonPathProvider | undefined;
   let cataloguePath = '';
   let environment: Environment = { blockceptionActive: false, blockceptionJsonCompletion: false };
   let canRefreshTokens = false;
 
   const applySettings = (s: ClientSettings | undefined) => {
+    const { schemaDetection: detect, ...json } = s?.json ?? {};
     settings = {
       unknownQueries: s?.diagnostics?.unknownQueries ?? defaultSettings.unknownQueries,
-      json: { ...defaultSettings.json, ...(s?.json ?? {}) },
+      versionSource: s?.versionSource ?? defaultSettings.versionSource,
+      json: { ...defaultSettings.json, ...json },
     };
+    schemaDetection = detect !== false;
+    if (paths) paths.useSchemas = schemaDetection;
     const path = s?.catalogue?.path ?? '';
     const reload = path !== cataloguePath;
     cataloguePath = path;
@@ -102,7 +133,7 @@ export function startServer(host: ServerHost) {
     try {
       const json = await host.loadPaths();
       if (json) {
-        const paths = JSON.parse(json) as PathCatalogue;
+        const paths = composePaths(json, await host.loadPathOverrides?.());
         const count = paths.fileTypes.reduce((n, ft) => n + ft.paths.length, 0);
         connection.console.info(`molang: ${count} Molang paths in ${paths.fileTypes.length} JSON file types`);
         return paths;
@@ -124,7 +155,9 @@ export function startServer(host: ServerHost) {
       const engine = await host.loadEngine();
       const t1 = host.uptime();
       const catalogue = await loadCatalogue(engine);
-      const s = new MolangService(engine, catalogue, [new MolangFileProvider(), new JsonPathProvider(await loadPaths())]);
+      paths = new JsonPathProvider(await loadPaths());
+      paths.useSchemas = schemaDetection;
+      const s = new MolangService(engine, catalogue, [new MolangFileProvider(), paths]);
       s.settings = settings;
       s.environment = environment;
       connection.console.info(
@@ -179,6 +212,7 @@ export function startServer(host: ServerHost) {
   documents.onDidClose(async (e) => {
     clearTimeout(pending.get(e.document.uri));
     (await service)?.invalidate(e.document.uri);
+    paths?.setSchemaPaths(e.document.uri, [], []);
     connection.sendDiagnostics({ uri: e.document.uri, diagnostics: [] });
   });
 
@@ -196,6 +230,17 @@ export function startServer(host: ServerHost) {
   connection.onNotification(EnvironmentNotification, async (env: Environment) => {
     environment = env;
     await revalidateAll();
+  });
+
+  // Diagnostics never wait for schemas: a document is checked against the
+  // catalogue as soon as it opens, and again when (if) its schemas add paths.
+  connection.onNotification(SchemaPathsNotification, async (p: SchemaPathsParams) => {
+    const s = await service!;
+    if (!paths?.setSchemaPaths(p.uri, p.fileTypes, p.schemas)) return;
+    s.invalidate(p.uri);
+    const doc = documents.get(p.uri);
+    if (doc) validate(doc, 0);
+    if (canRefreshTokens) connection.languages.semanticTokens.refresh();
   });
 
   const withDoc = async <T>(uri: string, empty: T, f: (s: MolangService, doc: TextDocument) => T): Promise<T> => {
@@ -229,6 +274,9 @@ export function startServer(host: ServerHost) {
       }
       return r;
     }),
+  );
+  connection.onRequest(RegionsRequest, (p: { uri: string }) =>
+    withDoc<RegionsResponse>(p.uri, { regions: [] }, (s, doc) => ({ regions: s.regions(doc) })),
   );
   connection.onRequest(PrintRequest, (p: PrintParams): Promise<PrintResponse> =>
     withDoc<PrintResponse>(p.uri, { error: 'Not a Molang document.' }, (s, doc) => s.print(doc, p.how)),

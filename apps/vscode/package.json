@@ -73,6 +73,12 @@
         "title": "Minify",
         "category": "Molang",
         "enablement": "editorLangId == molang || editorLangId == bc-minecraft-molang"
+      },
+      {
+        "command": "molang.showRegions",
+        "title": "Show Molang regions in this file",
+        "category": "Molang",
+        "enablement": "editorLangId == molang || editorLangId == bc-minecraft-molang || editorLangId == json || editorLangId == jsonc"
       }
     ],
     "menus": {
@@ -80,6 +86,10 @@
         {
           "command": "molang.minify",
           "when": "editorLangId == molang || editorLangId == bc-minecraft-molang"
+        },
+        {
+          "command": "molang.showRegions",
+          "when": "editorLangId == molang || editorLangId == bc-minecraft-molang || editorLangId == json || editorLangId == jsonc"
         }
       ]
     },
@@ -103,6 +113,24 @@
           ],
           "default": "default",
           "markdownDescription": "Severity for a query name that does not resolve where it is written: not in the catalogue, or not one the field can name. `default` is an error, as the game refuses to load the expression."
+        },
+        "molang.versionSource": {
+          "type": "string",
+          "enum": [
+            "format_version",
+            "ignore"
+          ],
+          "enumDescriptions": [
+            "Read a pack file's Molang at its format_version.",
+            "Read Molang at no version: version-gated queries are not checked."
+          ],
+          "default": "format_version",
+          "markdownDescription": "The version a JSON file's Molang is read at, which decides the queries that were added or removed in a version. `format_version` takes the file's own, as a best-effort rule: behaviour-pack files and resource-pack client files alike, geometry excepted (its `format_version` is the geometry format's). A file without one is read at no version."
+        },
+        "molang.json.schemaDetection": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Also read as Molang the strings the JSON schemas VS Code applies to a file mark as Molang (from extensions, `json.schemas` or the file's `$schema`), where the shipped path catalogue has no entry. **Molang: Show Molang regions in this file** shows which source found each string."
         },
         "molang.json.enabled": {
           "type": "boolean",

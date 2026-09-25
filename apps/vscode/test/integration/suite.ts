@@ -140,3 +140,26 @@ test('completes inside a JSON string', async () => {
   const labels = list.items.map((i) => (typeof i.label === 'string' ? i.label : i.label.label));
   assert.ok(labels.includes('is_moving'), labels.join(', '));
 });
+
+test('reads as Molang what the file\'s own schema marks, where the catalogue has nothing', async () => {
+  const doc = await open('custom.json');
+  const ds = await diagnostics(doc);
+  const got = ds.map((d) => `${doc.getText(d.range)} ${d.message}`);
+  assert.deepEqual(got, ['; unexpected token ;']);
+});
+
+test("gates queries by the file's format_version", async () => {
+  const doc = await open('gated.animation_controllers.json');
+  const ds = await diagnostics(doc);
+  const got = ds.map((d) => `${doc.getText(d.range)} ${d.code}`);
+  assert.deepEqual(got, ['q.is_feeling_happy query-version']);
+});
+
+test('lists the Molang regions of a file', async () => {
+  await open('custom.json');
+  // The command ends in a pick list; close it once it is up.
+  const done = vscode.commands.executeCommand('molang.showRegions');
+  await new Promise((r) => setTimeout(r, 1000));
+  await vscode.commands.executeCommand('workbench.action.closeQuickOpen');
+  await done;
+});

@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   compilePattern,
+  composePaths,
   isCommandOrEvent,
   JsonPathProvider,
   looksLikeMolang,
   matchPattern,
   optionsFor,
+  versionGoverned,
+  type FileType,
   type PathCatalogue,
 } from '../../src/server/embedding';
 
@@ -210,5 +213,127 @@ describe('JsonPathProvider with a catalogue', () => {
   it("honours a path's format_version range", () => {
     const old = JSON.stringify({ format_version: '1.20.0', 'minecraft:entity': { components: { 'minecraft:new': { value: 'v.y' } } } });
     expect(provider.provideRegions(doc(old))).toEqual([]);
+  });
+});
+
+describe('schema-driven paths under the catalogue', () => {
+  const catalogue: PathCatalogue = {
+    fileTypes: [
+      {
+        rootKey: 'minecraft:entity',
+        paths: [
+          { path: 'components/*/filter', kind: 'tag_filter' },
+          { path: 'components/minecraft:new/value', kind: 'number', formatVersion: { min: '1.21.0' } },
+        ],
+      },
+      { rootKey: 'minecraft:client_entity', paths: [{ path: 'description/scripts/variables/*', kind: 'variable_name', target: 'key' }] },
+    ],
+    notMolang: [{ rootKey: 'minecraft:entity', path: 'description/identifier' }],
+  };
+  const schema: FileType[] = [
+    {
+      rootKey: 'minecraft:entity',
+      paths: [
+        { path: 'components/*/filter', kind: 'general', accepts: ['string'] },
+        { path: 'components/*/custom', kind: 'general', accepts: ['string', 'object'] },
+        { path: 'components/minecraft:new/value', kind: 'general' },
+        { path: 'description/identifier', kind: 'general' },
+      ],
+    },
+    { rootKey: 'minecraft:client_entity', paths: [{ path: 'description/scripts/variables/*', kind: 'general' }] },
+    { rootKey: 'minecraft:scatter_feature', paths: [{ path: 'count', kind: 'general' }] },
+    { rootKey: '*', paths: [{ path: 'anywhere', kind: 'general' }] },
+  ];
+  const entity = JSON.stringify({
+    format_version: '1.20.0',
+    'minecraft:entity': {
+      description: { identifier: 'a:b' },
+      components: {
+        'minecraft:a': { filter: "q.any_tag('x')", custom: 'v.c', other: 'v.no' },
+        'minecraft:b': { custom: { expression: 'v.d', version: 1 } },
+        'minecraft:new': { value: 'v.too_old' },
+      },
+    },
+  });
+  const summary = (p: JsonPathProvider, text: string, uri = 'file:///x.json') =>
+    p.provideRegions({ ...doc(text), uri })!.map((r) => `${r.text} ${r.kind} ${r.source}`);
+
+  it('adds what the catalogue lacks, and lets the catalogue decide the rest', () => {
+    const p = new JsonPathProvider(catalogue);
+    expect(summary(p, entity)).toEqual(["q.any_tag('x') tag_filter catalogue"]);
+    expect(p.setSchemaPaths('file:///x.json', schema, ['s.json'])).toBe(true);
+    // The same paths again change nothing, so the document is not re-checked.
+    expect(p.setSchemaPaths('file:///x.json', schema, ['s.json'])).toBe(false);
+    expect(summary(p, entity)).toEqual([
+      "q.any_tag('x') tag_filter catalogue",
+      'v.c general schema',
+      'v.d general schema',
+    ]);
+    // Only for the document the schemas apply to.
+    expect(summary(p, entity, 'file:///other.json')).toEqual(["q.any_tag('x') tag_filter catalogue"]);
+  });
+
+  it("keeps out what the catalogue removes, gates by version or reads as keys", () => {
+    const p = new JsonPathProvider(catalogue);
+    p.setSchemaPaths('file:///x.json', schema, ['s.json']);
+    const texts = summary(p, entity);
+    expect(texts.some((t) => t.startsWith('a:b'))).toBe(false);
+    expect(texts.some((t) => t.startsWith('v.too_old'))).toBe(false);
+    const client = JSON.stringify({ 'minecraft:client_entity': { description: { scripts: { variables: { 'variable.x': 'public' } } } } });
+    expect(summary(p, client)).toEqual([]);
+  });
+
+  it('reads world generation roots as worldgen, and an open root under any key', () => {
+    const p = new JsonPathProvider(catalogue);
+    p.setSchemaPaths('file:///x.json', schema, ['s.json']);
+    const feature = JSON.stringify({ format_version: '1.21.0', 'minecraft:scatter_feature': { count: 'q.heightmap(0, 0)' } });
+    const regions = p.provideRegions(doc(feature))!;
+    expect(regions.map((r) => [r.text, r.kind, r.options.querySet])).toEqual([['q.heightmap(0, 0)', 'worldgen', 'world_gen']]);
+    expect(summary(p, JSON.stringify({ 'my:thing': { anywhere: 'v.x' } }))).toEqual(['v.x general schema']);
+  });
+
+  it('can be switched off, and cleared', () => {
+    const p = new JsonPathProvider(catalogue);
+    p.setSchemaPaths('file:///x.json', schema, ['s.json']);
+    p.useSchemas = false;
+    expect(summary(p, entity)).toEqual(["q.any_tag('x') tag_filter catalogue"]);
+    p.useSchemas = true;
+    expect(p.setSchemaPaths('file:///x.json', [], [])).toBe(true);
+    expect(summary(p, entity)).toEqual(["q.any_tag('x') tag_filter catalogue"]);
+  });
+
+  it("takes the curated removals from the overrides file", () => {
+    const composed = composePaths(
+      JSON.stringify({ fileTypes: [] }),
+      JSON.stringify({
+        remove: [{ rootKey: 'r', path: 'a', reason: '' }],
+        notMolang: [{ rootKeys: ['r', 's'], paths: ['b', 'c'], reason: '' }],
+      }),
+    );
+    expect(composed.notMolang).toEqual([
+      { rootKey: 'r', path: 'a' },
+      { rootKey: 'r', path: 'b' },
+      { rootKey: 'r', path: 'c' },
+      { rootKey: 's', path: 'b' },
+      { rootKey: 's', path: 'c' },
+    ]);
+  });
+});
+
+describe("a document's Molang version", () => {
+  it('is its format_version, except for geometry', () => {
+    const p = new JsonPathProvider({
+      fileTypes: [
+        { rootKey: 'animation_controllers', paths: [{ path: '*/x', kind: 'general' }] },
+        { rootKey: 'minecraft:geometry', paths: [{ path: '[*]/x', kind: 'general' }] },
+      ],
+    });
+    const ac = p.provideRegions(doc(JSON.stringify({ format_version: '1.21.0', animation_controllers: { c: { x: 'v.a' } } })))!;
+    expect(ac[0].version).toBe('1.21.0');
+    const none = p.provideRegions(doc(JSON.stringify({ animation_controllers: { c: { x: 'v.a' } } })))!;
+    expect(none[0].version).toBeUndefined();
+    const geo = p.provideRegions(doc(JSON.stringify({ format_version: '1.16.0', 'minecraft:geometry': [{ x: 'v.a' }] })))!;
+    expect(geo[0].version).toBeUndefined();
+    expect(versionGoverned('minecraft:entity')).toBe(true);
   });
 });

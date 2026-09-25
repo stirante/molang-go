@@ -1,6 +1,7 @@
 // What the extension does once it has a language client: the client options,
-// the environment it reports to the server, and the one command the protocol
-// has no request for. All language features are the server's.
+// the environment it reports to the server, the commands the protocol has no
+// request for, and the Molang the JSON schemas of open documents mark, which
+// only the extension host can read. All language features are the server's.
 //
 // Shared by the desktop entry (src/extension.ts, a Node server over IPC) and
 // the web entry (src/web/extension.ts, a server in a Web Worker); the two
@@ -9,6 +10,8 @@
 import * as vscode from 'vscode';
 import type { BaseLanguageClient, LanguageClientOptions } from 'vscode-languageclient';
 import { blockceptionState } from './blockception';
+import { registerRegionsCommand } from './regionsCommand';
+import { SchemaIndex } from './schemaIndex';
 
 export type ClientFactory = (options: LanguageClientOptions) => BaseLanguageClient;
 
@@ -37,8 +40,16 @@ export async function activateWith(context: vscode.ExtensionContext, create: Cli
   client = create(clientOptions);
   await client.start();
 
+  const schemas = new SchemaIndex(
+    (p) => void client?.sendNotification('molang/schemaPaths', p),
+    (m) => client?.outputChannel.appendLine(`molang: ${m}`),
+  );
+  schemas.refreshAll();
+
   const sendEnvironment = () => client?.sendNotification('molang/environment', blockceptionState());
   context.subscriptions.push(
+    schemas,
+    registerRegionsCommand(() => client, schemas),
     vscode.extensions.onDidChange(sendEnvironment),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('BC-MC')) sendEnvironment();

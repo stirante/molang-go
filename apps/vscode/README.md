@@ -36,8 +36,10 @@ the right character.
 ![A syntax error inside an animation controller's on_entry](media/json.png)
 
 Also: semantic highlighting, a grammar for `.molang` files, **formatting**
-of `.molang` files, a **Molang: Minify** command, and an outline of the
-variables a file uses.
+of `.molang` files, a **Molang: Minify** command, an outline of the
+variables a file uses, and **Molang: Show Molang regions in this file**,
+which outlines and lists where the extension reads Molang in the open file
+and what found each string.
 
 ### Files it reads
 
@@ -50,6 +52,42 @@ variables a file uses.
 
 JSON files are recognised by their root key (`animation_controllers`,
 `minecraft:client_entity`, ...), whatever folder they are in.
+
+### Molang the schemas mark
+
+The JSON schemas VS Code applies to a file are read too: those other
+extensions contribute (Blockception's, for one), those in the `json.schemas`
+setting, and the file's own `$schema`, matched to the file by VS Code's own
+rules. Wherever a schema marks a string as Molang -- `"format": "molang"`, a
+title starting "Molang", a reference to Mojang's `Expression Node.json` or
+`Molang string.json`, the `{"expression", "version"}` object form -- and the
+shipped path catalogue has no entry for it, the string is read as Molang as
+well. The catalogue always wins: a field it knows is read as the kind it
+gives, and a field it has removed or declared not Molang stays that way. A
+schema cannot say which kind of Molang a field holds, so these are read as
+general Molang (world generation Molang in feature, feature rule and biome
+files).
+
+This never delays diagnostics: a file is checked against the catalogue as
+it opens, and again if its schemas add anything. Schemas are read once and
+kept; a remote one is fetched with a short timeout, not at all when
+`json.schemaDownload.enable` is off. `molang.json.schemaDetection` turns the
+whole thing off, and **Molang: Show Molang regions in this file** shows
+which strings came from the catalogue and which from a schema.
+
+### Versions
+
+Some queries exist only in files read at certain versions: added in one,
+removed in a later one. A pack JSON file's Molang is taken to be read at the
+file's `format_version`, and a query outside its versions is reported as
+not resolving. This is a best-effort rule, applied to behaviour-pack files
+(entities, blocks, items, features, feature rules, biomes) and resource-pack
+client files (client entities, attachables, animations, animation
+controllers, render controllers, particles) alike. Geometry is the exception:
+its `format_version` is the geometry format's own. A file without a
+`format_version`, and every `.molang` file, is read at no version, so no
+query is refused for its version. `molang.versionSource` set to `ignore`
+turns the version checks off.
 
 ## `.molang` files
 
@@ -86,7 +124,10 @@ game would refuse.
 
 On [vscode.dev](https://vscode.dev) and github.dev everything works as on
 the desktop, except `molang.catalogue.path`: a web extension cannot read a
-file by path, so the shipped catalogue is always used there.
+file by path, so the shipped catalogue is always used there. Schemas are
+read there too, through the editor's file system; a remote schema is
+fetched by the browser, so one whose server does not allow it (CORS) is
+skipped, as an unreachable one is on the desktop.
 
 ## Settings
 
@@ -94,7 +135,9 @@ file by path, so the shipped catalogue is always used there.
 | --- | --- |
 | `molang.catalogue.path` | A `catalogue.json` to use instead of the shipped one. |
 | `molang.diagnostics.unknownQueries` | Severity for a query that does not resolve; `default` is an error, as the game refuses the expression. |
+| `molang.versionSource` | `format_version` (the default) reads a pack file's Molang at its `format_version`; `ignore` skips the version checks. |
 | `molang.json.enabled` | Molang features inside JSON files. |
+| `molang.json.schemaDetection` | Also read the Molang JSON schemas mark. |
 | `molang.json.completion` | `auto`, `on` or `off`. |
 | `molang.json.semanticTokens` | `auto`, `on` or `off`. |
 

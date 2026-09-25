@@ -38,6 +38,10 @@ startServer({
     const file = path.join(__dirname, '..', 'data', 'molang-paths.json');
     return existsSync(file) ? readFile(file, 'utf8') : undefined;
   },
+  loadPathOverrides: async () => {
+    const file = path.join(__dirname, '..', 'data', 'molang-paths.overrides.json');
+    return existsSync(file) ? readFile(file, 'utf8') : undefined;
+  },
   uptime: () => performance.now(),
 });
 

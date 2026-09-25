@@ -53,6 +53,7 @@ startServer({
     return composeCatalogue(main, math, namespaces);
   },
   loadPaths: () => optional('data/molang-paths.json'),
+  loadPathOverrides: () => optional('data/molang-paths.overrides.json'),
   uptime: () => performance.now(),
 });
 
