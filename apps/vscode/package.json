@@ -193,7 +193,7 @@
     "build": "node scripts/build.mjs",
     "build:wasm": "node scripts/build.mjs --wasm-only",
     "watch": "node scripts/build.mjs --watch",
-    "typecheck": "tsc --noEmit -p .",
+    "typecheck": "npm run build:wasm && tsc --noEmit -p .",
     "test": "npm run build && vitest run",
     "test:unit": "vitest run",
     "test:integration": "npm run build && node scripts/build.mjs --integration && node dist/test/runIntegration.js",
