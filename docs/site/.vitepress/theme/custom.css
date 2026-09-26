@@ -1,0 +1,53 @@
+/* Badges and the query index. Colours are the default theme's own tokens, so
+   both colour schemes work without a second palette. */
+
+.mg-badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 16px; }
+.mg-badge {
+  display: inline-block;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  border: 1px solid var(--vp-c-divider);
+  color: var(--vp-c-text-2);
+  background: var(--vp-c-bg-soft);
+  white-space: nowrap;
+}
+.mg-badges .mg-badge { cursor: help; }
+.mg-badge--set { font-family: var(--vp-font-family-mono); }
+.mg-badge--side-client,
+.mg-badge--client { color: var(--vp-c-indigo-1); background: var(--vp-c-indigo-soft); border-color: transparent; }
+.mg-badge--side-server { color: var(--vp-c-purple-1); background: var(--vp-c-purple-soft); border-color: transparent; }
+.mg-badge--deprecated { color: var(--vp-c-danger-1); background: var(--vp-c-danger-soft); border-color: transparent; }
+.mg-badge--gate { color: var(--vp-c-warning-1); background: var(--vp-c-warning-soft); border-color: transparent; }
+.mg-badge--v-verified { color: var(--vp-c-tip-1); background: var(--vp-c-tip-soft); border-color: transparent; }
+.mg-badge--v-partial { color: var(--vp-c-tip-1); }
+.mg-badge--v-documented { color: var(--vp-c-text-2); }
+.mg-badge--v-pending { color: var(--vp-c-warning-1); }
+.mg-badge--v-unobservable { color: var(--vp-c-text-2); }
+
+/* The facts under a namespace heading, and the verification line that ends a query page. */
+.vp-doc .mg-facts { font-size: 13px; color: var(--vp-c-text-2); }
+.vp-doc .mg-verified { margin-top: 32px; font-size: 13px; color: var(--vp-c-text-2); border-top: 1px solid var(--vp-c-divider); padding-top: 12px; }
+
+/* The index. */
+.mg-index__controls { position: sticky; top: var(--vp-nav-height); z-index: 2; background: var(--vp-c-bg); padding: 8px 0; }
+.mg-index__search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  background: var(--vp-c-bg-soft);
+  font-size: 15px;
+}
+.mg-index__search:focus { outline: none; border-color: var(--vp-c-brand-1); }
+.mg-index__filters { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 13px; color: var(--vp-c-text-2); align-items: center; }
+.mg-index__filters select { border: 1px solid var(--vp-c-divider); border-radius: 6px; padding: 2px 6px; background: var(--vp-c-bg-soft); }
+.vp-doc .mg-index__count { margin: 8px 0 0; font-size: 13px; color: var(--vp-c-text-3); }
+.mg-index__set { font-family: var(--vp-font-family-mono); font-size: 13px; color: var(--vp-c-text-3); font-weight: 500; }
+.vp-doc ul.mg-index__list { list-style: none; padding-left: 0; }
+.vp-doc .mg-index__list li { margin: 0; padding: 8px 0; border-bottom: 1px solid var(--vp-c-divider); }
+.mg-index__badges { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 8px; vertical-align: middle; }
+.mg-index__summary { font-size: 14px; color: var(--vp-c-text-2); margin-top: 2px; }

@@ -1,0 +1,86 @@
+name: Docs site
+
+# Builds docs/site with VitePress and publishes it to GitHub Pages at
+# https://stirante.github.io/molang-go/.
+#
+# The query pages are generated at build time (npm run build runs
+# tools/generate.mjs first) from docs/site/data/queries.json, which is
+# committed. That file and the extension's catalogue are written together by
+# tools/catalogue/build.mjs from notes that are not in the repository, so CI
+# cannot regenerate them; it checks them instead:
+#   1. tools/catalogue/build.mjs --check -- public text only, every query once,
+#      hovers of at most four lines, docs URLs on the route contract, every
+#      example parsing with molang-go. Needs Go.
+#   2. the build itself -- VitePress fails on a dead link between pages.
+#   3. tools/check-links.mjs --verify-dist -- anchors, the route contract
+#      (/queries/<name> for every query, and nothing else), and every link to
+#      the site from a tracked file outside docs/.
+#
+# No `paths:` filter: a link to the site can be added anywhere in the
+# repository, and the check has to see it.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: docs/site/package-lock.json
+
+      - name: Check the committed catalogue
+        run: node tools/catalogue/build.mjs --check
+
+      - name: npm ci (docs/site only)
+        run: npm ci --no-audit --no-fund
+        working-directory: docs/site
+
+      - name: Build
+        run: npm run build
+        working-directory: docs/site
+
+      - name: Check links, anchors and the route contract
+        run: node tools/check-links.mjs --verify-dist
+        working-directory: docs/site
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/site/.vitepress/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

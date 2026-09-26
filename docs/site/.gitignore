@@ -1,0 +1,11 @@
+# Installed on its own (see package.json).
+node_modules/
+# VitePress build output and its cache.
+.vitepress/dist/
+.vitepress/cache/
+# Written by tools/generate.mjs before every dev and build run, from the
+# committed data/queries.json and the extension's catalogue: build output,
+# never edited by hand, never committed.
+generated/
+queries/*.md
+!queries/index.md

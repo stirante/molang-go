@@ -1,0 +1,17 @@
+{
+  "about": "Rewordings applied on top of the working notes when build.mjs writes the shipped catalogue: a field whose wording breaks a rule in rules.mjs, fixed here until the notes are. Each entry names the field (query, then a path into the entry) and the SHA-256 of the text it replaces (first 16 hex digits); when the text in the notes changes, the hash no longer matches and the build stops, so a rewording is never applied to text nobody has read. An entry that no longer applies also stops the build: delete it.",
+  "fixes": [
+    {
+      "query": "is_sitting",
+      "path": "description",
+      "was": "705311bf4fb10ad1",
+      "text": "Returns 1 while the entity is sitting, otherwise 0. Sitting behaviors (cats, ocelots, foxes, camels, pandas) set it, and so do tamed pets told to sit and (not yet verified in game) the perching ender dragon."
+    },
+    {
+      "query": "equipped_item_all_tags",
+      "path": "pitfalls.2",
+      "was": "0650c6e0c7ddeba3",
+      "text": "Some tools list it as taking at most one argument, but it needs at least two; they may warn about a correct call."
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "molang-go-docs-site",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "The molang-go documentation site (VitePress). Not a workspace of anything: it has its own lockfile and is installed on its own, so it changes nothing about how the Go module or the extension build.",
+  "scripts": {
+    "generate": "node tools/generate.mjs",
+    "predev": "node tools/generate.mjs",
+    "dev": "vitepress dev",
+    "prebuild": "node tools/generate.mjs",
+    "build": "vitepress build",
+    "check": "node tools/check-links.mjs",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  }
+}

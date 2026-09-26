@@ -468,7 +468,7 @@ describe('inlay hints', () => {
         return `${h.label}${text.slice(at, at + 3)}`;
       });
       // v.max already says max.
-      expect(hints).toEqual(['value:v.x', 'min:0, ', "slot_name:'sl", 'slot_index:0, ', "item_name:'a'", "item_name:'b'"]);
+      expect(hints).toEqual(['value:v.x', 'min:0, ', "slot_name:'sl", 'slot_index:0, ', "item:'a'", "item:'b'"]);
     } finally {
       service.settings = before;
     }

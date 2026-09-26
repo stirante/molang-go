@@ -76,8 +76,8 @@ describe('completionItems', () => {
     expect(baby.insertText).toBe('is_baby');
     expect(baby.detail).toBe('query.is_baby: number');
     const any = list.find((i) => i.label === 'is_item_name_any')!;
-    expect(any.insertText).toBe('is_item_name_any(${1:slot_name}, ${2:item_name})');
-    expect(any.detail).toBe('query.is_item_name_any(slot_name: string, slot_index?: number, ...item_name: string): number');
+    expect(any.insertText).toBe('is_item_name_any(${1:slot_name}, ${2:item})');
+    expect(any.detail).toBe('query.is_item_name_any(slot_name: string, slot_index?: number, ...item: string): number');
   });
 
   it('always calls a math function, but never math.pi', () => {

@@ -11,6 +11,18 @@ export interface CatalogueArg {
   type?: string;
   optional?: boolean;
   description?: string;
+  /** Every form the argument accepts, in words: enum strings, conversions. */
+  accepts?: string[];
+  /** The value used when the argument is left out. */
+  default?: unknown;
+  variadic?: boolean;
+}
+
+/** How far an entry has been checked in the game, as the catalogue publishes it. */
+export interface CatalogueVerification {
+  status: 'verified' | 'partial' | 'documented' | 'unobservable' | 'pending';
+  game: string;
+  label: string;
 }
 
 export interface CatalogueFunction {
@@ -32,6 +44,17 @@ export interface CatalogueFunction {
   summary?: string;
   /** Markdown. */
   description?: string;
+  /**
+   * Markdown, at most four lines: the call and what it returns, then the
+   * facts most likely to bite. Shown instead of description, example and
+   * notes when present.
+   */
+  hover?: string;
+  /** client, server or both, possibly with a note. */
+  side?: string;
+  /** The entry's page on the documentation site. */
+  docs?: string;
+  verification?: CatalogueVerification;
   example?: string;
   notes?: string[];
 }
@@ -195,10 +218,15 @@ export function functionDocs(namespace: string, f: CatalogueFunction, catalogue:
     const repl = f.deprecated.replacement ? ` Use \`${f.deprecated.replacement}\` instead.` : '';
     lines.push(`**Deprecated.**${repl}${f.deprecated.note ? ' ' + f.deprecated.note : ''}`);
   }
-  const text = f.description || f.summary;
-  if (text) lines.push(text);
-  if (f.example) lines.push('```molang\n' + f.example + '\n```');
-  if (f.notes?.length) lines.push(f.notes.map((n) => `- ${n}`).join('\n'));
+  if (f.hover) {
+    // Hover lines are separate facts; a Markdown hard break keeps them apart.
+    lines.push(f.hover.split('\n').join('  \n'));
+  } else {
+    const text = f.description || f.summary;
+    if (text) lines.push(text);
+    if (f.example) lines.push('```molang\n' + f.example + '\n```');
+    if (f.notes?.length) lines.push(f.notes.map((n) => `- ${n}`).join('\n'));
+  }
   const set = querySetOf(f);
   if (set === 'world_gen') lines.push('World generation expressions only.');
   if (set === 'tags') lines.push('Item and block tag expressions only.');
@@ -208,5 +236,17 @@ export function functionDocs(namespace: string, f: CatalogueFunction, catalogue:
   if (namespace === 'query' && catalogue.partial && !lines.length) {
     lines.push('_Not yet described._');
   }
+  if (f.docs) lines.push(`[Documentation →](${f.docs})`);
   return lines.join('\n\n');
+}
+
+/** Markdown for one argument in signature help: what it is, what it accepts, its default. */
+export function argDocs(a: CatalogueArg): string {
+  const parts: string[] = [];
+  if (a.description) parts.push(a.description);
+  if (a.accepts?.length) parts.push('Accepts:\n' + a.accepts.map((x) => `- ${x}`).join('\n'));
+  if (a.default !== undefined && a.default !== null) {
+    parts.push(`Default: \`${typeof a.default === 'string' ? a.default : JSON.stringify(a.default)}\``);
+  }
+  return parts.join('\n\n');
 }

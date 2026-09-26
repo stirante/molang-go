@@ -25,7 +25,7 @@ import {
 } from 'vscode-languageserver-types';
 import { codeActions as quickFixes } from './actions';
 import type { AnalyzeOptions, AnalyzeResult, BridgeRef, CanonicalNamespace, FormatOptions, MolangEngine } from './bridge';
-import { argRange, entryDocs, functionDocs, signatureLabel, type Catalogue } from './catalogue';
+import { argDocs, argRange, entryDocs, functionDocs, signatureLabel, type Catalogue } from './catalogue';
 import { completionContext, completionItems, type KnownName } from './completion';
 import { JSON_LANGUAGE_IDS } from './embedding';
 import { parameterHints } from './inlay';
@@ -469,9 +469,10 @@ export class MolangService {
       if (i > 0) label += ', ';
       const start = label.length;
       label += text;
+      const docs = argDocs(p);
       return {
         label: [start, label.length] as [number, number],
-        documentation: p.description ? { kind: MarkupKind.Markdown, value: p.description } : undefined,
+        documentation: docs ? { kind: MarkupKind.Markdown, value: docs } : undefined,
       };
     });
     label += ')' + (f.returns && f.returns !== 'unknown' ? `: ${f.returns}` : '');

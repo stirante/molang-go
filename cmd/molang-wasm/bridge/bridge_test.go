@@ -564,6 +564,21 @@ func TestShippedCatalogue(t *testing.T) {
 			t.Errorf("query.%s has no description", q.Name)
 		}
 	}
+	// Every example is one a user can paste: it parses.
+	var examples struct {
+		Queries []struct{ Name, Example string } `json:"queries"`
+	}
+	if err := json.Unmarshal(data, &examples); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range examples.Queries {
+		if q.Example == "" {
+			continue
+		}
+		if _, err := molang.Parse(q.Example); err != nil {
+			t.Errorf("query.%s example %q: %v", q.Name, q.Example, err)
+		}
+	}
 	data, err = os.ReadFile("../../../apps/vscode/catalogue/math.json")
 	if err != nil {
 		t.Fatal(err)
